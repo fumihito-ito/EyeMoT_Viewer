@@ -8,987 +8,1021 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; }
-        body {
-            font-family: "Helvetica Neue", Arial, sans-serif;
-            background: #f4f6f9; color: #333;
-            height: 100vh; overflow: hidden; margin: 0; padding: 0;
-        }
+        body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f4f6f9; color: #333; height: 100vh; overflow: hidden; margin: 0; padding: 0; }
 
         /* ===== App Shell ===== */
         .app-shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         /* ===== Header ===== */
-        .app-header {
-            flex-shrink: 0; background: #2c3e50; color: white;
-            padding: 7px 14px; display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25); z-index: 50;
-        }
-        .app-header h2 { flex: 1; text-align: center; margin: 0; font-size: 1.05em; font-weight: 600; color: white; }
-        .hdr-btn {
-            padding: 5px 12px; background: rgba(255,255,255,0.12); color: white;
-            border: 1px solid rgba(255,255,255,0.25); border-radius: 5px;
-            cursor: pointer; font-size: 0.85em; transition: background 0.2s; white-space: nowrap;
-        }
+        .app-header { flex-shrink: 0; background: #2c3e50; color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.25); z-index: 50; }
+        .app-header-row1 { padding: 7px 14px; display: flex; align-items: center; gap: 8px; }
+        .app-header-row1 h2 { flex: 1; text-align: center; margin: 0; font-size: 1.05em; font-weight: 600; color: white; }
+        .app-header-row2 { border-top: 1px solid rgba(255,255,255,0.12); background: #243342; padding: 0 10px; }
+        .hdr-btn { padding: 5px 12px; background: rgba(255,255,255,0.12); color: white; border: 1px solid rgba(255,255,255,0.25); border-radius: 5px; cursor: pointer; font-size: 0.85em; transition: background 0.2s; white-space: nowrap; }
         .hdr-btn:hover { background: rgba(255,255,255,0.25); }
-        .hdr-btn.active { background: rgba(52,152,219,0.6); border-color: #3498db; }
         .hdr-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        /* ===== Two-pane layout ===== */
-        .two-pane-layout { flex: 1; display: flex; overflow: hidden; position: relative; }
+        /* ===== Tab bar ===== */
+        .tab-bar { display: flex; align-items: stretch; gap: 2px; overflow-x: auto; scrollbar-width: none; height: 34px; }
+        .tab-bar::-webkit-scrollbar { display: none; }
+        .tab-btn { display: flex; align-items: center; gap: 5px; padding: 0 10px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7); border: none; border-bottom: 3px solid transparent; cursor: pointer; font-size: 0.83em; white-space: nowrap; transition: background 0.15s; min-width: 0; }
+        .tab-btn:hover { background: rgba(255,255,255,0.14); color: white; }
+        .tab-btn.active { background: rgba(255,255,255,0.18); color: white; border-bottom-color: #3498db; }
+        .tab-color-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .tab-label { max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
+        .tab-close { background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; font-size: 0.9em; padding: 0 2px; line-height: 1; border-radius: 3px; }
+        .tab-close:hover { background: rgba(255,0,0,0.4); color: white; }
+        .tab-add-btn { padding: 0 12px; background: none; color: rgba(255,255,255,0.5); border: none; cursor: pointer; font-size: 0.85em; white-space: nowrap; }
+        .tab-add-btn:hover { color: white; }
 
-        .left-pane {
-            width: 42%; min-width: 220px; max-width: 75%;
-            flex-shrink: 0; display: flex; flex-direction: column;
-            overflow-y: auto; overflow-x: hidden;
-            padding: 8px; background: white;
-            border-right: 1px solid #e0e4e8; position: relative;
-        }
-        .pane-splitter {
-            width: 7px; flex-shrink: 0; background: #e0e4e8;
-            cursor: col-resize; transition: background 0.15s;
-        }
+        /* ===== Sets container ===== */
+        #setsContainer { flex: 1; overflow: hidden; position: relative; }
+        .set-panel { display: none; height: 100%; position: relative; }
+        .set-panel.active { display: flex; flex-direction: column; }
+
+        /* ===== Two-pane layout ===== */
+        .two-pane-layout { flex: 1; display: flex; overflow: hidden; }
+        .left-pane { width: 42%; min-width: 220px; max-width: 75%; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; padding: 8px; background: white; border-right: 1px solid #e0e4e8; position: relative; }
+        .pane-splitter { width: 7px; flex-shrink: 0; background: #e0e4e8; cursor: col-resize; transition: background 0.15s; }
         .pane-splitter:hover { background: #3498db; }
-        .right-pane {
-            flex: 1; min-width: 250px; display: flex; flex-direction: column;
-            overflow-y: auto; padding: 8px; background: #f9fafb;
-        }
+        .right-pane { flex: 1; min-width: 250px; display: flex; flex-direction: column; overflow-y: auto; padding: 8px; background: #f9fafb; }
 
         /* ===== Float: File Panel ===== */
-        .float-file-panel {
-            position: absolute; top: 0; left: 0; width: 100%; z-index: 200;
-            background: white; border-bottom: 2px solid #3498db;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-        }
-        .float-file-header {
-            background: #2c3e50; color: white; padding: 7px 12px;
-            display: flex; align-items: center; justify-content: space-between;
-            font-weight: bold; font-size: 0.88em; cursor: move; user-select: none;
-        }
-        .float-file-body {
-            padding: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
-        }
-        .float-close-btn {
-            background: none; border: 1px solid rgba(255,255,255,0.4);
-            color: white; border-radius: 4px; cursor: pointer;
-            padding: 2px 9px; font-size: 0.85em;
-        }
+        .float-file-panel { position: absolute; top: 0; left: 0; width: 100%; z-index: 200; background: white; border-bottom: 2px solid #3498db; box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+        .float-file-header { background: #2c3e50; color: white; padding: 7px 12px; display: flex; align-items: center; justify-content: space-between; font-weight: bold; font-size: 0.88em; cursor: move; user-select: none; }
+        .float-file-body { padding: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .float-close-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 4px; cursor: pointer; padding: 2px 9px; font-size: 0.85em; }
         .float-close-btn:hover { background: rgba(255,255,255,0.2); }
 
         /* ===== Float: Settings Panel ===== */
-        .float-settings-panel {
-            position: absolute; top: 0; left: 0; width: 100%; z-index: 100;
-            background: white; border-bottom: 2px solid #9b59b6;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-        }
-        .float-settings-header {
-            background: #2c3e50; color: white; padding: 7px 12px;
-            display: flex; align-items: center; justify-content: space-between;
-            font-weight: bold; font-size: 0.88em; cursor: move; user-select: none;
-        }
+        .float-settings-panel { position: absolute; top: 0; left: 0; width: 100%; z-index: 100; background: white; border-bottom: 2px solid #9b59b6; box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+        .float-settings-header { background: #2c3e50; color: white; padding: 7px 12px; display: flex; align-items: center; justify-content: space-between; font-weight: bold; font-size: 0.88em; cursor: move; user-select: none; }
         .float-settings-body { padding: 12px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
         .float-row { display: flex; align-items: center; gap: 8px; }
         .float-label { font-weight: bold; color: #555; font-size: 0.88em; }
         .float-controls { display: flex; align-items: center; gap: 4px; }
 
-        /* ===== File bar (info) ===== */
-        .file-bar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
-        .file-bar-info {
-            font-size: 0.73em; color: #555; background: #f8f9fa;
-            padding: 3px 8px; border-radius: 4px; border: 1px solid #e9ecef;
-            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
+        /* ===== File bar ===== */
+        .file-bar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }
+        .set-color-swatch { width: 24px; height: 24px; border: none; border-radius: 4px; cursor: pointer; padding: 0; flex-shrink: 0; }
+        .file-bar-btn { padding: 4px 10px; background: #eef2f6; color: #2c3e50; border: 1px solid #ccd; border-radius: 4px; cursor: pointer; font-size: 0.8em; white-space: nowrap; transition: background 0.15s; }
+        .file-bar-btn:hover { background: #dce4ec; }
+        .file-bar-info { font-size: 0.73em; color: #555; background: #f8f9fa; padding: 3px 8px; border-radius: 4px; border: 1px solid #e9ecef; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-bar-info.loaded { color: #1a7a4a; background: #eafaf1; border-color: #a9dfbf; }
         .meta-item { display: inline; margin-right: 10px; white-space: nowrap; }
         .meta-icon { margin-right: 3px; }
         .meta-highlight { color: #d35400; font-weight: bold; background: #fff5e6; padding: 0 3px; border-radius: 3px; }
 
         /* ===== Video ===== */
-        .video-wrapper {
-            position: relative; width: 100%; height: 240px; min-height: 120px;
-            background: black; border-radius: 6px; overflow: hidden;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.2);
-            display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0;
-        }
+        .video-wrapper { position: relative; width: 100%; height: 240px; min-height: 120px; background: black; border-radius: 6px; overflow: hidden; box-shadow: 0 3px 8px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         video { width: 100%; height: 100%; display: block; transition: filter 0.2s ease; object-fit: contain; }
-
-        .gaze-canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 5;
-        }
-        .video-overlay {
-            position: absolute; top: 10px; right: 10px;
-            background: rgba(0,0,0,0.6); padding: 6px 9px; border-radius: 6px;
-            pointer-events: auto; cursor: move; display: flex; flex-direction: column; gap: 2px;
-            z-index: 10; min-width: 120px; user-select: none;
-        }
-        .overlay-row {
-            display: flex; justify-content: space-between; align-items: center;
-            font-family: 'Courier New', monospace; font-weight: bold; font-size: 0.82em;
-            padding: 1px 3px; border-radius: 3px;
-            transition: background-color 0.1s, color 0.1s; text-shadow: 1px 1px 1px black;
-        }
+        .gaze-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .video-overlay { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 6px 9px; border-radius: 6px; pointer-events: auto; cursor: move; display: flex; flex-direction: column; gap: 2px; z-index: 10; min-width: 120px; user-select: none; }
+        .overlay-row { display: flex; justify-content: space-between; align-items: center; font-family: 'Courier New', monospace; font-weight: bold; font-size: 0.82em; padding: 1px 3px; border-radius: 3px; transition: background-color 0.1s, color 0.1s; text-shadow: 1px 1px 1px black; }
         .overlay-value { display: inline-block; width: 50px; text-align: right; }
-
-        .filter-overlay-container {
-            position: absolute; top: 10px; left: 10px; z-index: 20;
-            display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
-        }
-        .filter-icon-btn {
-            background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3);
-            border-radius: 50%; width: 34px; height: 34px; font-size: 1em;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        }
+        .filter-overlay-container { position: absolute; top: 10px; left: 10px; z-index: 20; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+        .filter-icon-btn { background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 34px; height: 34px; font-size: 1em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
         .filter-icon-btn:hover, .filter-icon-btn.active { background: rgba(0,0,0,0.85); border-color: white; }
-        .filter-panel {
-            background: rgba(0,0,0,0.78); backdrop-filter: blur(6px);
-            padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            color: white; display: flex; flex-direction: column; gap: 9px; width: 175px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        .filter-header { font-size: 0.88em; font-weight: bold; text-align: center; margin-bottom: 4px; color: #ddd; border-bottom: 1px dashed #666; padding-bottom: 4px; }
+        .filter-panel { background: rgba(0,0,0,0.78); backdrop-filter: blur(6px); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); color: white; display: flex; flex-direction: column; gap: 9px; width: 175px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .filter-header { font-size: 0.88em; font-weight: bold; text-align: center; color: #ddd; border-bottom: 1px dashed #666; padding-bottom: 4px; margin-bottom: 2px; }
         .filter-item { display: flex; flex-direction: column; font-size: 0.78em; }
         .filter-item label { margin-bottom: 2px; color: #ccc; }
         .filter-item input[type=range] { width: 100%; cursor: pointer; }
         .filter-item input[type=checkbox] { transform: scale(1.2); align-self: flex-start; cursor: pointer; }
-        .reset-filter-btn { background: #95a5a6; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 0.82em; margin-top: 4px; width: 100%; transition: background 0.2s; }
-
-        /* ===== Video resizer (hidden – kept for JS compat) ===== */
-        #videoResizer { display: none; }
+        .reset-filter-btn { background: #95a5a6; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 0.82em; margin-top: 4px; width: 100%; }
 
         /* ===== Toolbar ===== */
-        .toolbar {
-            display: flex; flex-wrap: wrap; align-items: center;
-            gap: 6px; background: #f8f9fa; padding: 6px 8px;
-            border-radius: 6px; border: 1px solid #e9ecef;
-            margin: 6px 0; flex-shrink: 0;
-        }
+        .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; background: #f8f9fa; padding: 6px 8px; border-radius: 6px; border: 1px solid #e9ecef; margin: 6px 0; flex-shrink: 0; }
         .toolbar-group { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-        .action-btn {
-            padding: 6px 11px; font-size: 0.88em; font-weight: bold; border-radius: 6px;
-            cursor: pointer; border: none; transition: background 0.2s, transform 0.1s;
-            color: white; display: flex; align-items: center; gap: 5px; min-width: 80px; justify-content: center;
-        }
+        .action-btn { padding: 6px 11px; font-size: 0.88em; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; transition: background 0.2s, transform 0.1s; color: white; display: flex; align-items: center; gap: 5px; min-width: 76px; justify-content: center; }
         .action-btn:active { transform: scale(0.97); }
-        #playBtn { background: #28a745; } #playBtn:hover { background: #218838; }
-        #stopBtn { background: #dc3545; } #stopBtn:hover { background: #c82333; }
-        #addMarkerBtn { background: #f1c40f; color: #333; } #addMarkerBtn:hover { background: #f39c12; }
-        #toggleOverlayBtn { background: #34495e; } #toggleOverlayBtn:hover { background: #2c3e50; }
-        #toggleGazeBtn { background: #8e44ad; } #toggleGazeBtn:hover { background: #9b59b6; }
+        .play-btn { background: #28a745; } .play-btn:hover { background: #218838; }
+        .stop-btn { background: #dc3545; } .stop-btn:hover { background: #c82333; }
+        .marker-btn { background: #f1c40f; color: #333; } .marker-btn:hover { background: #f39c12; }
+        .overlay-btn { background: #34495e; } .overlay-btn:hover { background: #2c3e50; }
+        .gaze-btn { background: #8e44ad; } .gaze-btn:hover { background: #9b59b6; }
+        .settings-btn { background: #7f8c8d; } .settings-btn:hover { background: #636e72; }
 
-        /* ===== Offset controls (in settings panel) ===== */
-        .btn-offset {
-            background: #fff; border: 1px solid #ced6e0; cursor: pointer; color: #444;
-            padding: 4px 9px; border-radius: 4px; font-size: 0.82em; font-family: monospace;
-            transition: background 0.15s;
-        }
-        .btn-offset:hover { background: #e2e6ea; border-color: #adb5bd; }
-        input#offsetInput {
-            width: 68px; text-align: center; font-size: 0.95em; padding: 4px 6px;
-            border: 2px solid #0984e3; border-radius: 4px; font-weight: bold; color: #0984e3;
-        }
+        /* ===== Offset controls ===== */
+        .btn-offset { background: #fff; border: 1px solid #ced6e0; cursor: pointer; color: #444; padding: 4px 9px; border-radius: 4px; font-size: 0.82em; font-family: monospace; transition: background 0.15s; }
+        .btn-offset:hover { background: #e2e6ea; }
+        .num-input { width: 68px; text-align: center; font-size: 0.95em; padding: 4px 6px; border: 2px solid #0984e3; border-radius: 4px; font-weight: bold; color: #0984e3; }
 
-        /* ===== Values section ===== */
+        /* ===== Values ===== */
         .values-section { margin-top: 6px; flex-shrink: 0; }
-        .values-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding: 0 2px; }
-        .values-title { font-weight: bold; color: #444; font-size: 0.85em; display: flex; align-items: center; gap: 4px; }
-        .threshold-control {
-            display: flex; align-items: center; gap: 5px; font-size: 0.77em; color: #555;
-            background: #fff; padding: 2px 7px; border-radius: 10px; border: 1px solid #ddd;
-        }
-        .threshold-control input { width: 50px; padding: 2px; text-align: center; border: 1px solid #ccc; border-radius: 3px; font-weight: bold; color: #e74c3c; }
+        .values-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .values-title { font-weight: bold; color: #444; font-size: 0.85em; }
         .current-values { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .value-box {
-            background: #fff; color: #333; padding: 4px 6px; border-radius: 6px; text-align: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 3px solid #ccc;
-            transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: center; height: 46px;
-        }
+        .value-box { background: #fff; color: #333; padding: 4px 6px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 3px solid #ccc; transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: center; height: 46px; }
         .value-box .label { display: block; font-size: 0.68em; font-weight: bold; text-transform: uppercase; margin-bottom: 1px; }
         .value-box strong { display: block; font-size: 1.3em; font-family: 'Courier New', monospace; font-weight: bold; color: #2c3e50; line-height: 1; }
         .value-box.alert { background: #e74c3c; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(231,76,60,0.4); border-top-color: #c0392b !important; }
         .value-box.alert .label, .value-box.alert strong { color: white !important; }
 
-        /* ===== Chart (right pane) ===== */
-        .chart-container {
-            position: relative; height: 300px; min-height: 120px; width: 100%;
-            cursor: crosshair; background: #fff; border-radius: 4px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex-shrink: 0;
-        }
-        .chart-resize-handle {
-            height: 11px; background: #eef2f6; cursor: row-resize;
-            border-radius: 4px; display: flex; justify-content: center; align-items: center;
-            margin: 4px 0 8px 0; border: 1px solid #dee2e6; transition: background 0.15s; flex-shrink: 0;
-        }
+        /* ===== Chart ===== */
+        .chart-container { position: relative; height: 300px; min-height: 120px; width: 100%; cursor: crosshair; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex-shrink: 0; }
+        .chart-resize-handle { height: 11px; background: #eef2f6; cursor: row-resize; border-radius: 4px; display: flex; justify-content: center; align-items: center; margin: 4px 0 8px 0; border: 1px solid #dee2e6; transition: background 0.15s; flex-shrink: 0; }
         .chart-resize-handle:hover { background: #dce4ec; }
         .chart-resize-handle::after { content: "••••"; color: #999; letter-spacing: 2px; font-size: 9px; }
 
-        /* ===== Marker section ===== */
-        .marker-section {
-            padding: 12px; background: #fff3cd; border: 1px solid #ffeeba;
-            border-radius: 8px; flex-shrink: 0;
-        }
+        /* ===== Markers ===== */
+        .marker-section { padding: 12px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; flex-shrink: 0; }
         .marker-section h3 { margin: 0 0 8px 0; font-size: 0.9em; color: #856404; display: flex; align-items: center; gap: 5px; border-bottom: 1px dashed #e6dbb9; padding-bottom: 5px; }
         .marker-list { display: flex; flex-direction: column; gap: 6px; list-style: none; padding: 0; margin: 0; max-height: 220px; overflow-y: auto; }
-        .marker-item {
-            background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 4px 9px;
-            font-size: 0.88em; display: flex; align-items: center; gap: 8px; cursor: pointer;
-            transition: background 0.15s, border-color 0.15s;
-        }
+        .marker-item { background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 4px 9px; font-size: 0.88em; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: background 0.15s; }
         .marker-item:hover { background: #fff9e6; border-color: #f39c12; }
         .marker-time { font-weight: bold; font-family: monospace; color: #333; min-width: 65px; }
         .marker-input { flex-grow: 1; border: 1px solid #eee; border-radius: 4px; padding: 3px 7px; font-size: 0.88em; color: #555; }
         .marker-input:focus { border-color: #f1c40f; background: #fffff8; outline: none; }
-        .marker-delete {
-            color: #dc3545; font-weight: bold; cursor: pointer; border-radius: 4px;
-            padding: 2px 7px; display: flex; align-items: center; background: #fff0f0; border: 1px solid #f5c6cb;
-        }
+        .marker-delete { color: #dc3545; font-weight: bold; cursor: pointer; border-radius: 4px; padding: 2px 7px; background: #fff0f0; border: 1px solid #f5c6cb; }
         .marker-delete:hover { background: #dc3545; color: white; border-color: #dc3545; }
 
-        /* ===== Video comment ===== */
+        /* ===== Video comment & Download ===== */
         .video-comment-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e0e4e8; flex-shrink: 0; }
         .video-comment-label { display: block; font-weight: bold; color: #556; margin-bottom: 4px; font-size: 0.85em; }
-        .video-comment-area {
-            width: 100%; padding: 8px; border-radius: 5px;
-            border: 1px solid #dee2e6; font-size: 0.9em; resize: vertical; min-height: 55px;
-            font-family: inherit;
-        }
-        .video-comment-area:focus { outline: none; border-color: #3498db; box-shadow: 0 0 4px rgba(52,152,219,0.3); }
+        .video-comment-area { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #dee2e6; font-size: 0.9em; resize: vertical; min-height: 55px; font-family: inherit; }
+        .video-comment-area:focus { outline: none; border-color: #3498db; }
+        .download-area-inline { margin-top: 8px; text-align: center; flex-shrink: 0; }
+        .download-btn-inline { background: #3498db; color: white; border: none; padding: 8px 28px; border-radius: 20px; font-size: 0.95em; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        .download-btn-inline:hover { background: #2980b9; }
+        .download-btn-inline:disabled { background: #bdc3c7; cursor: not-allowed; }
 
-        /* ===== Form controls (in float panel) ===== */
+        /* ===== Form controls ===== */
         .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
         .ctrl-label { font-weight: bold; font-size: 0.82em; color: #2c3e50; }
-        .ctrl-input {
-            background: white; padding: 6px 8px; border-radius: 4px; border: 1px solid #ccc;
-            width: 100%; font-size: 0.88em;
-        }
-        .ctrl-input:focus { outline: none; border-color: #3498db; box-shadow: 0 0 4px rgba(52,152,219,0.3); }
+        .ctrl-input { background: white; padding: 6px 8px; border-radius: 4px; border: 1px solid #ccc; width: 100%; font-size: 0.88em; }
+        .ctrl-input:focus { outline: none; border-color: #3498db; }
         .ctrl-meta { font-size: 0.73em; color: #555; background: #f8f9fa; padding: 4px 7px; border-radius: 3px; border: 1px solid #e0e4e8; min-height: 22px; line-height: 1.5; }
     </style>
 </head>
 <body>
-
 <div class="app-shell">
 
     <!-- ===== Header ===== -->
     <div class="app-header">
-        <button class="hdr-btn" id="filePanelBtn" onclick="toggleFilePanel()">📁 ファイル読込</button>
-        <button class="hdr-btn" id="settingsPanelBtn" onclick="toggleSettingsPanel()">⚙ 設定</button>
-        <h2>👀 Gaze Data Viewer</h2>
-        <button id="downloadBtn" class="hdr-btn" disabled onclick="downloadCSV()">💾 CSV保存</button>
+        <div class="app-header-row1">
+            <button class="hdr-btn" onclick="document.getElementById('batchFileInput').click()">📂 一括読込</button>
+            <input type="file" id="batchFileInput" multiple accept=".mp4,.webm,.mov,.avi,.mkv,.csv" style="display:none" onchange="handleBatchInput(this)">
+            <h2>👀 Gaze Data Viewer</h2>
+        </div>
+        <div class="app-header-row2">
+            <div class="tab-bar" id="tabBar">
+                <button class="tab-add-btn" onclick="addNewSet()">＋ セット追加</button>
+            </div>
+        </div>
     </div>
 
-    <!-- ===== Two-pane layout ===== -->
-    <div class="two-pane-layout" id="twoPane">
+    <!-- ===== Sets container ===== -->
+    <div id="setsContainer"></div>
 
-        <!-- ===== Left Pane ===== -->
-        <div class="left-pane" id="leftPane">
-
-            <!-- Float: File Panel -->
-            <div id="filePanel" class="float-file-panel" style="display:none;">
-                <div class="float-file-header" id="filePanelHeader">
-                    <span>📁 ファイル読み込み</span>
-                    <button class="float-close-btn" onclick="toggleFilePanel()">✕</button>
-                </div>
-                <div class="float-file-body">
-                    <div class="ctrl-group">
-                        <label class="ctrl-label">1. 動画ファイル (.mp4)</label>
-                        <input type="file" id="videoInput" accept="video/*" class="ctrl-input">
-                        <div id="videoMeta" class="ctrl-meta">未選択</div>
-                    </div>
-                    <div class="ctrl-group">
-                        <label class="ctrl-label">2. CSVファイル (.csv)</label>
-                        <input type="file" id="csvInput" accept=".csv" class="ctrl-input">
-                        <div id="csvMeta" class="ctrl-meta">未選択</div>
-                    </div>
-                    <div class="ctrl-group">
-                        <label class="ctrl-label">3. 編集者 (Editor)</label>
-                        <input type="text" id="editorInput" placeholder="編集者の名前" class="ctrl-input">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Float: Settings Panel -->
-            <div id="settingsPanel" class="float-settings-panel" style="display:none;">
-                <div class="float-settings-header" id="settingsPanelHeader">
-                    <span>⚙ オフセット設定</span>
-                    <button class="float-close-btn" onclick="toggleSettingsPanel()">✕</button>
-                </div>
-                <div class="float-settings-body">
-                    <div class="float-row">
-                        <span class="float-label">⏱ Offset:</span>
-                        <div class="float-controls">
-                            <button class="btn-offset" onclick="adjustOffset(-1.0)">-1.0</button>
-                            <button class="btn-offset" onclick="adjustOffset(-0.1)">-0.1</button>
-                            <input type="number" id="offsetInput" value="0.00" step="0.01" onchange="applyOffsetFromInput()">
-                            <button class="btn-offset" onclick="adjustOffset(0.1)">+0.1</button>
-                            <button class="btn-offset" onclick="adjustOffset(1.0)">+1.0</button>
-                        </div>
-                    </div>
-                    <div class="float-row">
-                        <span class="float-label">Alert X/Y &gt;</span>
-                        <div class="float-controls">
-                            <input type="number" id="globalThresholdInput" value="1900" step="50"
-                                style="width:70px;padding:4px;border:1px solid #ccc;border-radius:4px;font-weight:bold;color:#e74c3c;">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- File info bar -->
-            <div class="file-bar">
-                <div id="videoMetaBar" class="file-bar-info">🎬 動画: 未選択</div>
-                <div id="csvMetaBar" class="file-bar-info">📄 CSV: 未選択</div>
-            </div>
-
-            <!-- Video -->
-            <div class="video-wrapper" id="videoWrapper">
-                <video id="mainVideo" controls playsinline></video>
-                <canvas id="gazeCanvas" class="gaze-canvas"></canvas>
-                <div id="videoOverlay" class="video-overlay"></div>
-                <div class="filter-overlay-container">
-                    <button id="filterToggleBtn" class="filter-icon-btn" title="映像フィルター">🎨</button>
-                    <div id="filterPanel" class="filter-panel" style="display:none;">
-                        <div class="filter-header">映像フィルター</div>
-                        <div class="filter-item"><label>明るさ</label><input type="range" id="f-brightness" min="50" max="150" value="100"></div>
-                        <div class="filter-item"><label>コントラスト</label><input type="range" id="f-contrast" min="50" max="150" value="100"></div>
-                        <div class="filter-item"><label>彩度</label><input type="range" id="f-saturate" min="0" max="200" value="100"></div>
-                        <div class="filter-item"><label><input type="checkbox" id="f-grayscale"> モノクロ</label></div>
-                        <div class="filter-item"><label><input type="checkbox" id="f-invert"> 反転</label></div>
-                        <button class="reset-filter-btn" onclick="resetFilters()">リセット</button>
-                    </div>
-                </div>
-            </div>
-            <!-- JS互換のためdisplay:none -->
-            <div id="videoResizer"></div>
-
-            <!-- Toolbar -->
-            <div class="toolbar">
-                <div class="toolbar-group">
-                    <button id="playBtn" class="action-btn">▶ 再生</button>
-                    <button id="stopBtn" class="action-btn">■ 停止</button>
-                    <button id="addMarkerBtn" class="action-btn">🚩 マーカー</button>
-                    <button id="toggleOverlayBtn" class="action-btn">👁 数値</button>
-                    <button id="toggleGazeBtn" class="action-btn">👀 視線</button>
-                </div>
-            </div>
-
-            <!-- Values -->
-            <div class="values-section">
-                <div class="values-header">
-                    <div class="values-title">📊 Current Gaze (X, Y)</div>
-                </div>
-                <div class="current-values" id="valuesDisplay"></div>
-            </div>
-
-            <!-- Video comment -->
-            <div class="video-comment-section">
-                <label class="video-comment-label">📝 動画全体のコメント / 考察</label>
-                <textarea id="videoCommentInput" class="video-comment-area" rows="3" placeholder="動画全体に関するメモや考察..."></textarea>
-            </div>
-        </div>
-
-        <!-- ===== Splitter ===== -->
-        <div class="pane-splitter" id="paneSplitter"></div>
-
-        <!-- ===== Right Pane ===== -->
-        <div class="right-pane" id="rightPane">
-            <div class="chart-container" id="chartWrapper">
-                <canvas id="myChart"></canvas>
-            </div>
-            <div class="chart-resize-handle" id="chartResizer" title="ドラッグしてグラフ高さを変更"></div>
-
-            <div class="marker-section">
-                <h3>🚩 マーカーリスト (クリックでジャンプ)</h3>
-                <ul id="markerList" class="marker-list">
-                    <li style="color:#888; font-size:0.9em; padding:5px;">マーカーはまだありません</li>
-                </ul>
-            </div>
-        </div>
-    </div><!-- /.two-pane-layout -->
-
-</div><!-- /.app-shell -->
+</div>
 
 <script>
-    const targetColumns = ['Gaze_X', 'Gaze_Y'];
-    const colorPalette = ['#3498db', '#e74c3c'];
+// ===== Constants =====
+const TARGET_COLUMNS = ['Gaze_X', 'Gaze_Y'];
+const COLOR_PALETTE  = ['#3498db', '#e74c3c'];
+const TAB_COLORS = ['#3498db','#e74c3c','#2ecc71','#9b59b6','#f39c12','#1abc9c','#e67e22','#34495e'];
 
-    const videoInput = document.getElementById('videoInput');
-    const csvInput = document.getElementById('csvInput');
-    const editorInput = document.getElementById('editorInput');
+// ===== Global state =====
+let sets = [];
+let activeSetId = null;
 
-    const video = document.getElementById('mainVideo');
-    const videoWrapper = document.getElementById('videoWrapper');
-    const chartWrapper = document.getElementById('chartWrapper');
-    const gazeCanvas = document.getElementById('gazeCanvas');
-    const gazeCtx = gazeCanvas.getContext('2d');
+function getSet(id) { return sets.find(s => s.id === id); }
 
-    const playBtn = document.getElementById('playBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const addMarkerBtn = document.getElementById('addMarkerBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
-    const toggleGazeBtn = document.getElementById('toggleGazeBtn');
-
-    const filterToggleBtn = document.getElementById('filterToggleBtn');
-    const filterPanel = document.getElementById('filterPanel');
-    const f_brightness = document.getElementById('f-brightness');
-    const f_contrast = document.getElementById('f-contrast');
-    const f_saturate = document.getElementById('f-saturate');
-    const f_grayscale = document.getElementById('f-grayscale');
-    const f_invert = document.getElementById('f-invert');
-
-    const videoMeta = document.getElementById('videoMeta');
-    const csvMeta = document.getElementById('csvMeta');
-    const valuesDisplay = document.getElementById('valuesDisplay');
-    const videoOverlay = document.getElementById('videoOverlay');
-    const canvas = document.getElementById('myChart');
-    const offsetInput = document.getElementById('offsetInput');
-    const markerListEl = document.getElementById('markerList');
-    const globalThresholdInput = document.getElementById('globalThresholdInput');
-    const videoCommentInput = document.getElementById('videoCommentInput');
-
-    const videoResizer = document.getElementById('videoResizer');
-    const chartResizer = document.getElementById('chartResizer');
-
-    let chartInstance = null;
-    let rawCsvData = [];
-    let displayCsvData = [];
-    let labels = [];
-    let isDragging = false;
-    let isDraggingMarker = false;
-    let draggedMarkerIndex = -1;
-
-    let globalThreshold = 1900;
-    let currentOffset = 0.0;
-
-    let fileHeaderLines = [];
-    let originalFileBaseName = "gaze_data";
-    let currentFileSequence = 0;
-    let metaScreenX = 1920;
-    let metaScreenY = 1200;
-
-    let markers = [];
-    let currentVideoComment = "";
-    let hoveredListMarkerIndex = -1;
-    let hoveredGraphMarkerIndex = -1;
-    let isGazeVisible = true;
-    let globalStartTime = 0;
-    let lastLoadedMetadata = null;
-
-    // ===== Float panel toggle =====
-    window.toggleFilePanel = function() {
-        const panel = document.getElementById('filePanel');
-        const btn = document.getElementById('filePanelBtn');
-        const isOpen = panel.style.display !== 'none';
-        panel.style.display = isOpen ? 'none' : 'block';
-        btn.classList.toggle('active', !isOpen);
-        if (!isOpen) document.getElementById('settingsPanel').style.display = 'none';
+function createSetState(id, name, color) {
+    return {
+        id, name, color,
+        rawCsvData: [], displayCsvData: [], markers: [],
+        currentOffset: 0.0, globalThreshold: 1900, globalStartTime: 0,
+        originalFileBaseName: 'gaze_data', currentFileSequence: 0,
+        fileHeaderLines: [], metaScreenX: 1920, metaScreenY: 1200,
+        chartInstance: null,
+        isDragging: false, isDraggingMarker: false, draggedMarkerIndex: -1,
+        hoveredGraphMarkerIndex: -1, hoveredListMarkerIndex: -1,
+        isGazeVisible: true, videoLoaded: false, videoFile: null,
+        currentVideoComment: '',
     };
-    window.toggleSettingsPanel = function() {
-        const panel = document.getElementById('settingsPanel');
-        const btn = document.getElementById('settingsPanelBtn');
-        const isOpen = panel.style.display !== 'none';
-        panel.style.display = isOpen ? 'none' : 'block';
-        btn.classList.toggle('active', !isOpen);
-        if (!isOpen) document.getElementById('filePanel').style.display = 'none';
-    };
+}
 
-    // ===== Pane splitter =====
-    (function() {
-        const splitter = document.getElementById('paneSplitter');
-        const leftPane = document.getElementById('leftPane');
-        let dragging = false, startX, startW;
-        splitter.addEventListener('mousedown', (e) => {
-            dragging = true; startX = e.clientX; startW = leftPane.offsetWidth;
-            document.body.style.userSelect = 'none'; e.preventDefault();
+// ===== Tab management =====
+function renderTabs() {
+    const tabBar = document.getElementById('tabBar');
+    tabBar.querySelectorAll('.tab-btn').forEach(el => el.remove());
+    const addBtn = tabBar.querySelector('.tab-add-btn');
+    sets.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = 'tab-btn' + (s.id === activeSetId ? ' active' : '');
+        btn.dataset.setId = s.id;
+        btn.innerHTML = `<span class="tab-color-dot" style="background:${s.color}"></span><span class="tab-label">${escHtml(s.name)}</span><button class="tab-close" title="削除" onclick="removeSet('${s.id}',event)">✕</button>`;
+        btn.addEventListener('click', e => { if (e.target.classList.contains('tab-close')) return; switchSet(s.id); });
+        const lbl = btn.querySelector('.tab-label');
+        lbl.title = 'ダブルクリックで名前変更';
+        lbl.addEventListener('dblclick', e => {
+            e.stopPropagation();
+            const inp = document.createElement('input');
+            inp.type = 'text'; inp.value = s.name;
+            inp.style.cssText = 'font-size:0.85em;padding:1px 4px;border:1px solid #3498db;border-radius:3px;width:80px;outline:none;';
+            lbl.replaceWith(inp); inp.focus(); inp.select();
+            const save = () => { s.name = inp.value.trim() || s.name; renderTabs(); };
+            inp.addEventListener('blur', save);
+            inp.addEventListener('keydown', ke => { if (ke.key === 'Enter') inp.blur(); if (ke.key === 'Escape') { inp.value = s.name; inp.blur(); } });
         });
-        document.addEventListener('mousemove', (e) => {
-            if (!dragging) return;
-            const newW = Math.min(Math.max(220, startW + e.clientX - startX), window.innerWidth * 0.75);
-            leftPane.style.width = newW + 'px';
-        });
-        document.addEventListener('mouseup', () => {
-            if (dragging) { dragging = false; document.body.style.userSelect = ''; resizeGazeCanvas(); if (chartInstance) chartInstance.resize(); }
-        });
-    })();
+        tabBar.insertBefore(btn, addBtn);
+    });
+}
 
-    // ===== Chart resize handle =====
-    function makeChartResizable() {
-        let startY, startH;
-        chartResizer.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            startY = e.clientY;
-            startH = parseInt(document.defaultView.getComputedStyle(chartWrapper).height, 10);
-            document.documentElement.addEventListener('mousemove', doDrag, false);
-            document.documentElement.addEventListener('mouseup', stopDrag, false);
-        });
-        function doDrag(e) { chartWrapper.style.height = Math.max(120, startH + e.clientY - startY) + 'px'; }
-        function stopDrag() {
-            document.documentElement.removeEventListener('mousemove', doDrag, false);
-            document.documentElement.removeEventListener('mouseup', stopDrag, false);
-            if (chartInstance) chartInstance.resize();
-        }
+function switchSet(id) {
+    if (activeSetId) {
+        const prev = getSet(activeSetId);
+        if (prev) { const v = document.getElementById(`video-${prev.id}`); if (v) v.pause(); }
     }
-    makeChartResizable();
+    activeSetId = id;
+    document.querySelectorAll('.set-panel').forEach(p => p.classList.remove('active'));
+    const panel = document.getElementById(`panel-${id}`);
+    if (panel) panel.classList.add('active');
+    renderTabs();
+}
 
-    // ===== Canvas resize =====
+function addNewSet() {
+    const id = 'set_' + Date.now();
+    const idx = sets.length;
+    const color = TAB_COLORS[idx % TAB_COLORS.length];
+    const state = createSetState(id, `セット ${idx + 1}`, color);
+    sets.push(state);
+    buildSetPanel(state);
+    switchSet(id);
+}
+
+function removeSet(id, e) {
+    if (e) e.stopPropagation();
+    if (sets.length <= 1) { alert('最低1つのセットが必要です。'); return; }
+    if (!confirm('このセットを削除しますか？')) return;
+    const v = document.getElementById(`video-${id}`); if (v) v.pause();
+    const panel = document.getElementById(`panel-${id}`); if (panel) panel.remove();
+    const idx = sets.findIndex(s => s.id === id);
+    sets.splice(idx, 1);
+    if (activeSetId === id) switchSet(sets[Math.max(0, idx - 1)].id);
+    else renderTabs();
+}
+
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ===== Panel builder =====
+function buildSetPanel(state) {
+    const id = state.id;
+    const panel = document.createElement('div');
+    panel.className = 'set-panel';
+    panel.id = `panel-${id}`;
+
+    panel.innerHTML = `
+        <!-- Float: File Panel -->
+        <div id="filePanel-${id}" class="float-file-panel" style="display:none;">
+            <div class="float-file-header" id="filePanelHeader-${id}">
+                <span>📁 ファイル読み込み</span>
+                <button class="float-close-btn" onclick="toggleFilePanel('${id}')">✕</button>
+            </div>
+            <div class="float-file-body">
+                <div class="ctrl-group">
+                    <label class="ctrl-label">1. 動画ファイル (.mp4)</label>
+                    <input type="file" id="videoInput-${id}" accept="video/*" class="ctrl-input">
+                    <div id="videoMeta-${id}" class="ctrl-meta">未選択</div>
+                </div>
+                <div class="ctrl-group">
+                    <label class="ctrl-label">2. CSVファイル (.csv)</label>
+                    <input type="file" id="csvInput-${id}" accept=".csv" class="ctrl-input">
+                    <div id="csvMeta-${id}" class="ctrl-meta">未選択</div>
+                </div>
+                <div class="ctrl-group">
+                    <label class="ctrl-label">3. 編集者 (Editor)</label>
+                    <input type="text" id="editorInput-${id}" placeholder="編集者の名前" class="ctrl-input">
+                </div>
+            </div>
+        </div>
+
+        <!-- Float: Settings Panel -->
+        <div id="settingsPanel-${id}" class="float-settings-panel" style="display:none;">
+            <div class="float-settings-header" id="settingsPanelHeader-${id}">
+                <span>⚙ オフセット設定</span>
+                <button class="float-close-btn" onclick="toggleSettingsPanel('${id}')">✕</button>
+            </div>
+            <div class="float-settings-body">
+                <div class="float-row">
+                    <span class="float-label">⏱ Offset:</span>
+                    <div class="float-controls">
+                        <button class="btn-offset" onclick="adjustOffset('${id}',-1.0)">-1.0</button>
+                        <button class="btn-offset" onclick="adjustOffset('${id}',-0.1)">-0.1</button>
+                        <input type="number" id="offsetInput-${id}" value="0.00" step="0.01" class="num-input" onchange="applyOffsetFromInput('${id}')">
+                        <button class="btn-offset" onclick="adjustOffset('${id}',0.1)">+0.1</button>
+                        <button class="btn-offset" onclick="adjustOffset('${id}',1.0)">+1.0</button>
+                    </div>
+                </div>
+                <div class="float-row">
+                    <span class="float-label">Alert X/Y &gt;</span>
+                    <div class="float-controls">
+                        <input type="number" id="globalThresholdInput-${id}" value="1900" step="50"
+                            style="width:70px;padding:4px;border:1px solid #ccc;border-radius:4px;font-weight:bold;color:#e74c3c;"
+                            onchange="onThresholdChange('${id}',this.value)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two-pane -->
+        <div class="two-pane-layout" id="twoPane-${id}">
+            <div class="left-pane" id="leftPane-${id}">
+                <div class="file-bar">
+                    <input type="color" class="set-color-swatch" id="colorSwatch-${id}" value="${state.color}" title="セットカラー">
+                    <button class="file-bar-btn" onclick="toggleFilePanel('${id}')">📁 データ読み込み</button>
+                    <div id="fileBarVideo-${id}" class="file-bar-info">🎬 未選択</div>
+                    <div id="fileBarCsv-${id}" class="file-bar-info">📄 未選択</div>
+                </div>
+
+                <div class="video-wrapper" id="videoWrapper-${id}">
+                    <video id="video-${id}" controls playsinline></video>
+                    <canvas id="gazeCanvas-${id}" class="gaze-canvas"></canvas>
+                    <div id="videoOverlay-${id}" class="video-overlay"></div>
+                    <div class="filter-overlay-container">
+                        <button id="filterToggleBtn-${id}" class="filter-icon-btn" title="映像フィルター">🎨</button>
+                        <div id="filterPanel-${id}" class="filter-panel" style="display:none;">
+                            <div class="filter-header">映像フィルター</div>
+                            <div class="filter-item"><label>明るさ</label><input type="range" id="f-brightness-${id}" min="50" max="150" value="100"></div>
+                            <div class="filter-item"><label>コントラスト</label><input type="range" id="f-contrast-${id}" min="50" max="150" value="100"></div>
+                            <div class="filter-item"><label>彩度</label><input type="range" id="f-saturate-${id}" min="0" max="200" value="100"></div>
+                            <div class="filter-item"><label><input type="checkbox" id="f-grayscale-${id}"> モノクロ</label></div>
+                            <div class="filter-item"><label><input type="checkbox" id="f-invert-${id}"> 反転</label></div>
+                            <button class="reset-filter-btn" onclick="resetFilters('${id}')">リセット</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="toolbar-group">
+                        <button id="playBtn-${id}" class="action-btn play-btn">▶ 再生</button>
+                        <button id="stopBtn-${id}" class="action-btn stop-btn">■ 停止</button>
+                        <button id="addMarkerBtn-${id}" class="action-btn marker-btn">🚩 マーカー</button>
+                        <button id="toggleOverlayBtn-${id}" class="action-btn overlay-btn">👁 数値</button>
+                        <button id="toggleGazeBtn-${id}" class="action-btn gaze-btn">👀 視線</button>
+                        <button onclick="toggleSettingsPanel('${id}')" class="action-btn settings-btn">⚙ 設定</button>
+                    </div>
+                </div>
+
+                <div class="values-section">
+                    <div class="values-header"><div class="values-title">📊 Current Gaze (X, Y)</div></div>
+                    <div class="current-values" id="valuesDisplay-${id}"></div>
+                </div>
+
+                <div class="video-comment-section">
+                    <label class="video-comment-label">📝 動画全体のコメント / 考察</label>
+                    <textarea id="videoCommentInput-${id}" class="video-comment-area" rows="3" placeholder="動画全体に関するメモや考察..."></textarea>
+                </div>
+                <div class="download-area-inline">
+                    <button id="downloadBtn-${id}" class="download-btn-inline" disabled onclick="downloadCSV('${id}')">💾 CSV保存</button>
+                </div>
+            </div>
+
+            <div class="pane-splitter" id="paneSplitter-${id}"></div>
+
+            <div class="right-pane" id="rightPane-${id}">
+                <div class="chart-container" id="chartWrapper-${id}">
+                    <canvas id="myChart-${id}"></canvas>
+                </div>
+                <div class="chart-resize-handle" id="chartResizer-${id}" title="ドラッグしてグラフ高さを変更"></div>
+                <div class="marker-section">
+                    <h3>🚩 マーカーリスト (クリックでジャンプ)</h3>
+                    <ul id="markerList-${id}" class="marker-list">
+                        <li style="color:#888;font-size:0.9em;padding:5px;">マーカーはまだありません</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('setsContainer').appendChild(panel);
+    initSetBehavior(state);
+}
+
+// ===== Per-set behavior init =====
+function initSetBehavior(state) {
+    const id = state.id;
+    const video = document.getElementById(`video-${id}`);
+    const gazeCanvas = document.getElementById(`gazeCanvas-${id}`);
+    const gazeCtx = gazeCanvas.getContext('2d');
+    const videoWrapper = document.getElementById(`videoWrapper-${id}`);
+    const chartWrapper = document.getElementById(`chartWrapper-${id}`);
+
+    // Color swatch
+    document.getElementById(`colorSwatch-${id}`).addEventListener('input', e => {
+        state.color = e.target.value; renderTabs();
+    });
+
+    // Gaze canvas resize
     function resizeGazeCanvas() {
-        if (videoWrapper) {
-            gazeCanvas.width = videoWrapper.clientWidth;
-            gazeCanvas.height = videoWrapper.clientHeight;
-        }
+        gazeCanvas.width = videoWrapper.clientWidth;
+        gazeCanvas.height = videoWrapper.clientHeight;
     }
     window.addEventListener('resize', resizeGazeCanvas);
     new ResizeObserver(resizeGazeCanvas).observe(videoWrapper);
 
-    // ===== Global threshold =====
-    globalThresholdInput.addEventListener('change', (e) => {
-        globalThreshold = Number(e.target.value);
-        if (video.paused && chartInstance && displayCsvData.length > 0) updateValuesForTime(video.currentTime);
-    });
-    videoCommentInput.addEventListener('input', (e) => { currentVideoComment = e.target.value; });
-
-    // ===== Filter =====
-    filterToggleBtn.addEventListener('click', () => {
-        if (filterPanel.style.display === 'none') { filterPanel.style.display = 'flex'; filterToggleBtn.classList.add('active'); }
-        else { filterPanel.style.display = 'none'; filterToggleBtn.classList.remove('active'); }
-    });
-    function updateVideoFilters() {
-        video.style.filter = `brightness(${f_brightness.value}%) contrast(${f_contrast.value}%) saturate(${f_saturate.value}%) grayscale(${f_grayscale.checked ? 1 : 0}) invert(${f_invert.checked ? 1 : 0})`;
-    }
-    [f_brightness, f_contrast, f_saturate, f_grayscale, f_invert].forEach(el => { el.addEventListener('input', updateVideoFilters); el.addEventListener('change', updateVideoFilters); });
-    window.resetFilters = function() { f_brightness.value = 100; f_contrast.value = 100; f_saturate.value = 100; f_grayscale.checked = false; f_invert.checked = false; updateVideoFilters(); };
-
-    // ===== Overlay drag =====
-    function makeOverlayDraggable(el) {
-        let isDraggingOverlay = false, startX, startY, initialLeft, initialTop;
-        el.addEventListener('mousedown', (e) => {
-            isDraggingOverlay = true; startX = e.clientX; startY = e.clientY;
-            const rect = el.getBoundingClientRect(); const parentRect = videoWrapper.getBoundingClientRect();
-            initialLeft = rect.left - parentRect.left; initialTop = rect.top - parentRect.top;
-            el.style.right = 'auto'; el.style.left = initialLeft + 'px'; el.style.top = initialTop + 'px';
-            el.style.cursor = 'grabbing'; e.preventDefault();
+    // Chart resize handle
+    const chartResizer = document.getElementById(`chartResizer-${id}`);
+    (function() {
+        let startY, startH;
+        chartResizer.addEventListener('mousedown', e => {
+            e.preventDefault(); startY = e.clientY;
+            startH = parseInt(getComputedStyle(chartWrapper).height, 10);
+            const onMove = e => { chartWrapper.style.height = Math.max(120, startH + e.clientY - startY) + 'px'; };
+            const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); if (state.chartInstance) state.chartInstance.resize(); };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
         });
-        document.addEventListener('mousemove', (e) => {
-            if (!isDraggingOverlay) return;
-            const dx = e.clientX - startX; const dy = e.clientY - startY;
-            let newLeft = Math.max(0, Math.min(initialLeft + dx, videoWrapper.getBoundingClientRect().width - el.getBoundingClientRect().width));
-            let newTop = Math.max(0, Math.min(initialTop + dy, videoWrapper.getBoundingClientRect().height - el.getBoundingClientRect().height));
-            el.style.left = newLeft + 'px'; el.style.top = newTop + 'px';
-        });
-        document.addEventListener('mouseup', () => { if (isDraggingOverlay) { isDraggingOverlay = false; el.style.cursor = 'move'; } });
-    }
-    makeOverlayDraggable(videoOverlay);
+    })();
 
-    // ===== Playback =====
-    playBtn.addEventListener('click', () => { if (video.paused) { video.play(); } else { video.pause(); } });
-    stopBtn.addEventListener('click', () => { video.pause(); video.currentTime = 0; if (chartInstance && !video.seeking) chartInstance.draw(); });
+    // Pane splitter
+    (function() {
+        const splitter = document.getElementById(`paneSplitter-${id}`);
+        const leftPane = document.getElementById(`leftPane-${id}`);
+        let dragging = false, startX, startW;
+        splitter.addEventListener('mousedown', e => { dragging = true; startX = e.clientX; startW = leftPane.offsetWidth; document.body.style.userSelect = 'none'; e.preventDefault(); });
+        document.addEventListener('mousemove', e => { if (!dragging) return; leftPane.style.width = Math.min(Math.max(220, startW + e.clientX - startX), window.innerWidth * 0.75) + 'px'; });
+        document.addEventListener('mouseup', () => { if (dragging) { dragging = false; document.body.style.userSelect = ''; resizeGazeCanvas(); if (state.chartInstance) state.chartInstance.resize(); } });
+    })();
+
+    // Filters
+    const filterPanel = document.getElementById(`filterPanel-${id}`);
+    document.getElementById(`filterToggleBtn-${id}`).addEventListener('click', () => {
+        filterPanel.style.display = filterPanel.style.display === 'none' ? 'flex' : 'none';
+    });
+    function updateFilters() {
+        const b = document.getElementById(`f-brightness-${id}`).value;
+        const c = document.getElementById(`f-contrast-${id}`).value;
+        const s = document.getElementById(`f-saturate-${id}`).value;
+        const g = document.getElementById(`f-grayscale-${id}`).checked ? 1 : 0;
+        const iv = document.getElementById(`f-invert-${id}`).checked ? 1 : 0;
+        video.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) grayscale(${g}) invert(${iv})`;
+    }
+    ['f-brightness','f-contrast','f-saturate','f-grayscale','f-invert'].forEach(base => {
+        document.getElementById(`${base}-${id}`).addEventListener('input', updateFilters);
+        document.getElementById(`${base}-${id}`).addEventListener('change', updateFilters);
+    });
+
+    // Playback
+    const playBtn = document.getElementById(`playBtn-${id}`);
+    playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
     video.addEventListener('play', () => { playBtn.textContent = '⏸ 一時停止'; });
     video.addEventListener('pause', () => { playBtn.textContent = '▶ 再生'; });
     video.addEventListener('ended', () => { playBtn.textContent = '▶ 再生'; });
-    toggleOverlayBtn.addEventListener('click', () => {
-        if (videoOverlay.style.display === 'none') { videoOverlay.style.display = 'flex'; toggleOverlayBtn.style.background = '#34495e'; toggleOverlayBtn.style.color = 'white'; }
-        else { videoOverlay.style.display = 'none'; toggleOverlayBtn.style.background = '#ccc'; toggleOverlayBtn.style.color = '#333'; }
+    document.getElementById(`stopBtn-${id}`).addEventListener('click', () => { video.pause(); video.currentTime = 0; if (state.chartInstance) state.chartInstance.draw(); });
+
+    // Overlay toggle & drag
+    const videoOverlay = document.getElementById(`videoOverlay-${id}`);
+    document.getElementById(`toggleOverlayBtn-${id}`).addEventListener('click', () => {
+        const btn = document.getElementById(`toggleOverlayBtn-${id}`);
+        if (videoOverlay.style.display === 'none') { videoOverlay.style.display = 'flex'; btn.style.background = '#34495e'; }
+        else { videoOverlay.style.display = 'none'; btn.style.background = '#ccc'; btn.style.color = '#333'; }
     });
-    toggleGazeBtn.addEventListener('click', () => {
-        isGazeVisible = !isGazeVisible;
-        if (isGazeVisible) {
-            toggleGazeBtn.style.background = '#8e44ad'; toggleGazeBtn.style.color = 'white';
-            if (video.paused) updateValuesForTime(video.currentTime);
-        } else {
-            toggleGazeBtn.style.background = '#ccc'; toggleGazeBtn.style.color = '#333';
-            gazeCtx.clearRect(0, 0, gazeCanvas.width, gazeCanvas.height);
+    videoOverlay.addEventListener('mousedown', e => {
+        let sX = e.clientX, sY = e.clientY;
+        const rect = videoOverlay.getBoundingClientRect(), pRect = videoWrapper.getBoundingClientRect();
+        let iL = rect.left - pRect.left, iT = rect.top - pRect.top;
+        videoOverlay.style.right = 'auto'; videoOverlay.style.left = iL + 'px'; videoOverlay.style.top = iT + 'px';
+        const onMove = e => {
+            let nL = Math.max(0, Math.min(iL + e.clientX - sX, videoWrapper.offsetWidth - videoOverlay.offsetWidth));
+            let nT = Math.max(0, Math.min(iT + e.clientY - sY, videoWrapper.offsetHeight - videoOverlay.offsetHeight));
+            videoOverlay.style.left = nL + 'px'; videoOverlay.style.top = nT + 'px';
+        };
+        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+        e.preventDefault();
+    });
+
+    // Gaze toggle
+    document.getElementById(`toggleGazeBtn-${id}`).addEventListener('click', () => {
+        const btn = document.getElementById(`toggleGazeBtn-${id}`);
+        state.isGazeVisible = !state.isGazeVisible;
+        if (state.isGazeVisible) { btn.style.background = '#8e44ad'; btn.style.color = 'white'; if (video.paused) updateValuesForTime(state, gazeCtx, video.currentTime); }
+        else { btn.style.background = '#ccc'; btn.style.color = '#333'; gazeCtx.clearRect(0, 0, gazeCanvas.width, gazeCanvas.height); }
+    });
+
+    // Marker add
+    document.getElementById(`addMarkerBtn-${id}`).addEventListener('click', () => {
+        state.markers.push({ time: video.currentTime - state.currentOffset, label: '' });
+        state.markers.sort((a, b) => a.time - b.time);
+        renderMarkerList(state); if (state.chartInstance) state.chartInstance.draw();
+    });
+
+    // Comment
+    document.getElementById(`videoCommentInput-${id}`).addEventListener('input', e => { state.currentVideoComment = e.target.value; });
+
+    // File inputs
+    document.getElementById(`videoInput-${id}`).addEventListener('change', e => {
+        const file = e.target.files[0]; if (!file) return;
+        loadVideoFileIntoState(state, file);
+    });
+    document.getElementById(`csvInput-${id}`).addEventListener('change', e => {
+        const file = e.target.files[0]; if (!file) return;
+        loadCsvFileIntoState(state, file);
+    });
+
+    // Chart init
+    createValueBoxes(state);
+    initChart(state, video, gazeCtx, gazeCanvas);
+
+    // Animation loop
+    (function loop() {
+        if (state.chartInstance && !video.paused) state.chartInstance.draw();
+        requestAnimationFrame(loop);
+    })();
+}
+
+// ===== Float panel toggle =====
+window.toggleFilePanel = function(id) {
+    const panel = document.getElementById(`filePanel-${id}`);
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) document.getElementById(`settingsPanel-${id}`).style.display = 'none';
+};
+window.toggleSettingsPanel = function(id) {
+    const panel = document.getElementById(`settingsPanel-${id}`);
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) document.getElementById(`filePanel-${id}`).style.display = 'none';
+};
+
+// ===== Filters reset =====
+window.resetFilters = function(id) {
+    ['f-brightness','f-contrast','f-saturate'].forEach(b => document.getElementById(`${b}-${id}`).value = b.includes('saturate') ? 100 : 100);
+    document.getElementById(`f-brightness-${id}`).value = 100;
+    document.getElementById(`f-contrast-${id}`).value = 100;
+    document.getElementById(`f-saturate-${id}`).value = 100;
+    document.getElementById(`f-grayscale-${id}`).checked = false;
+    document.getElementById(`f-invert-${id}`).checked = false;
+    const video = document.getElementById(`video-${id}`); if (video) video.style.filter = '';
+};
+
+// ===== Offset =====
+window.adjustOffset = function(id, delta) {
+    const state = getSet(id); if (!state) return;
+    state.currentOffset = parseFloat((state.currentOffset + delta).toFixed(2));
+    document.getElementById(`offsetInput-${id}`).value = state.currentOffset.toFixed(2);
+    updateChartDataWithOffset(state); renderMarkerList(state);
+};
+window.applyOffsetFromInput = function(id) {
+    const state = getSet(id); if (!state) return;
+    const val = parseFloat(document.getElementById(`offsetInput-${id}`).value);
+    if (!isNaN(val)) { state.currentOffset = val; updateChartDataWithOffset(state); renderMarkerList(state); }
+};
+window.onThresholdChange = function(id, val) {
+    const state = getSet(id); if (!state) return;
+    state.globalThreshold = Number(val);
+    const video = document.getElementById(`video-${id}`);
+    const gazeCtx = document.getElementById(`gazeCanvas-${id}`).getContext('2d');
+    if (video && video.paused && state.chartInstance && state.displayCsvData.length > 0) updateValuesForTime(state, gazeCtx, video.currentTime);
+};
+
+// ===== Value boxes =====
+function createValueBoxes(state) {
+    const id = state.id;
+    const valuesDisplay = document.getElementById(`valuesDisplay-${id}`);
+    const videoOverlay = document.getElementById(`videoOverlay-${id}`);
+    if (!valuesDisplay || !videoOverlay) return;
+    valuesDisplay.innerHTML = ''; videoOverlay.innerHTML = '';
+    TARGET_COLUMNS.forEach((key, index) => {
+        const color = COLOR_PALETTE[index % COLOR_PALETTE.length];
+        const div = document.createElement('div'); div.className = 'value-box'; div.style.borderTopColor = color; div.dataset.baseColor = color;
+        div.innerHTML = `<span class="label" style="color:${color};">${key}</span><strong id="val-${id}-${index}">-</strong>`;
+        valuesDisplay.appendChild(div);
+        const row = document.createElement('div'); row.className = 'overlay-row'; row.dataset.baseColor = color; row.style.color = color;
+        row.innerHTML = `<span>${key}</span><span id="ov-val-${id}-${index}" class="overlay-value">-</span>`;
+        videoOverlay.appendChild(row);
+    });
+}
+
+// ===== Marker list =====
+function renderMarkerList(state) {
+    const id = state.id;
+    const markerListEl = document.getElementById(`markerList-${id}`);
+    if (!markerListEl) return;
+    markerListEl.innerHTML = '';
+    if (state.markers.length === 0) { markerListEl.innerHTML = '<li style="color:#888;font-size:0.9em;padding:5px;">マーカーはまだありません</li>'; return; }
+    state.markers.forEach((marker, index) => {
+        const li = document.createElement('li'); li.className = 'marker-item';
+        const displayTime = marker.time + state.currentOffset;
+        li.innerHTML = `<span class="marker-time">⏱ ${displayTime.toFixed(2)}s</span>`;
+        const input = document.createElement('input'); input.type = 'text'; input.className = 'marker-input'; input.placeholder = 'コメント...'; input.value = marker.label || '';
+        input.onclick = e => e.stopPropagation(); input.oninput = e => { marker.label = e.target.value; };
+        li.appendChild(input);
+        const delBtn = document.createElement('span'); delBtn.className = 'marker-delete'; delBtn.textContent = '削除';
+        delBtn.onclick = e => { e.stopPropagation(); state.markers.splice(index, 1); state.hoveredListMarkerIndex = -1; renderMarkerList(state); if (state.chartInstance) state.chartInstance.draw(); };
+        li.appendChild(delBtn);
+        li.onclick = () => { const v = document.getElementById(`video-${id}`); if (v) v.currentTime = displayTime; if (state.chartInstance) state.chartInstance.draw(); };
+        li.onmouseenter = () => { state.hoveredListMarkerIndex = index; if (state.chartInstance) state.chartInstance.draw(); };
+        li.onmouseleave = () => { state.hoveredListMarkerIndex = -1; if (state.chartInstance) state.chartInstance.draw(); };
+        markerListEl.appendChild(li);
+    });
+}
+
+// ===== Offset update =====
+function updateChartDataWithOffset(state) {
+    if (state.rawCsvData.length === 0) return;
+    state.displayCsvData = state.rawCsvData.map(row => ({ time: row.time + state.currentOffset, values: row.values }));
+    if (state.chartInstance) {
+        state.chartInstance.data.labels = state.displayCsvData.map(r => r.time);
+        state.chartInstance.data.datasets.forEach((ds, i) => { ds.data = state.displayCsvData.map(r => r.values[i]); });
+        state.chartInstance.update('none');
+        const video = document.getElementById(`video-${state.id}`);
+        if (video) { const gazeCtx = document.getElementById(`gazeCanvas-${state.id}`).getContext('2d'); updateValuesForTime(state, gazeCtx, video.currentTime); }
+    }
+}
+
+// ===== Gaze draw =====
+function drawGaze(state, gazeCtx, gazeCanvas, currentIndex) {
+    gazeCtx.clearRect(0, 0, gazeCanvas.width, gazeCanvas.height);
+    if (!state.isGazeVisible || currentIndex === 0) return;
+    const trailLength = 30;
+    const startIndex = Math.max(0, currentIndex - trailLength);
+    const scaleX = gazeCanvas.width / state.metaScreenX;
+    const scaleY = gazeCanvas.height / state.metaScreenY;
+    gazeCtx.beginPath(); gazeCtx.lineWidth = 3;
+    gazeCtx.strokeStyle = 'rgba(52,152,219,0.7)'; gazeCtx.lineCap = 'round'; gazeCtx.lineJoin = 'round';
+    let first = true;
+    for (let i = startIndex; i <= currentIndex; i++) {
+        const pt = state.displayCsvData[i]; if (!pt) continue;
+        const gx = pt.values[0] * scaleX, gy = pt.values[1] * scaleY;
+        if (first) { gazeCtx.moveTo(gx, gy); first = false; } else { gazeCtx.lineTo(gx, gy); }
+    }
+    gazeCtx.stroke();
+    const cur = state.displayCsvData[currentIndex];
+    if (cur) {
+        const cx = cur.values[0] * scaleX, cy = cur.values[1] * scaleY;
+        gazeCtx.beginPath(); gazeCtx.arc(cx, cy, 8, 0, 2 * Math.PI);
+        gazeCtx.fillStyle = 'rgba(231,76,60,0.9)'; gazeCtx.fill();
+        gazeCtx.strokeStyle = 'white'; gazeCtx.lineWidth = 2; gazeCtx.stroke();
+    }
+}
+
+// ===== Update values =====
+function updateValuesForTime(state, gazeCtx, currentTime) {
+    if (state.displayCsvData.length === 0) return;
+    let closestIndex = 0, minDiff = Infinity;
+    for (let i = 0; i < state.displayCsvData.length; i++) {
+        const diff = Math.abs(state.displayCsvData[i].time - currentTime);
+        if (diff < minDiff) { minDiff = diff; closestIndex = i; } else if (diff > 2.0 && i > 50) break;
+    }
+    const gazeCanvas = document.getElementById(`gazeCanvas-${state.id}`);
+    drawGaze(state, gazeCtx, gazeCanvas, closestIndex);
+    const row = state.displayCsvData[closestIndex]; if (!row) return;
+    row.values.forEach((val, i) => {
+        const valEl = document.getElementById(`val-${state.id}-${i}`);
+        const boxEl = valEl ? valEl.closest('.value-box') : null;
+        if (valEl && boxEl) {
+            const v = val !== null ? val : 0; valEl.textContent = val !== null ? val.toFixed(1) : '-';
+            if (v >= state.globalThreshold) { boxEl.classList.add('alert'); boxEl.style.backgroundColor = boxEl.dataset.baseColor; boxEl.style.borderColor = boxEl.dataset.baseColor; }
+            else { boxEl.classList.remove('alert'); boxEl.style.backgroundColor = '#fff'; boxEl.style.borderTopColor = boxEl.dataset.baseColor; boxEl.style.borderColor = ''; }
+        }
+        const ovEl = document.getElementById(`ov-val-${state.id}-${i}`);
+        const ovRow = ovEl ? ovEl.parentElement : null;
+        if (ovEl && ovRow) {
+            const v = val !== null ? val : 0; ovEl.textContent = v.toFixed(1);
+            if (v >= state.globalThreshold) { ovRow.style.backgroundColor = ovRow.dataset.baseColor; ovRow.style.color = '#fff'; ovRow.style.textShadow = 'none'; }
+            else { ovRow.style.backgroundColor = 'transparent'; ovRow.style.color = ovRow.dataset.baseColor; ovRow.style.textShadow = '1px 1px 2px black'; }
         }
     });
+}
 
-    // ===== Markers =====
-    addMarkerBtn.addEventListener('click', () => {
-        const baseTime = video.currentTime - currentOffset;
-        markers.push({ time: baseTime, label: "" });
-        markers.sort((a, b) => a.time - b.time);
-        renderMarkerList(); if (chartInstance) chartInstance.draw();
-    });
-    function deleteMarker(index) { markers.splice(index, 1); hoveredListMarkerIndex = -1; renderMarkerList(); if (chartInstance) chartInstance.draw(); }
-    function renderMarkerList() {
-        markerListEl.innerHTML = '';
-        if (markers.length === 0) { markerListEl.innerHTML = '<li style="color:#888; font-size:0.9em; padding:5px;">マーカーはまだありません</li>'; return; }
-        markers.forEach((marker, index) => {
-            const li = document.createElement('li'); li.className = 'marker-item';
-            const displayTime = marker.time + currentOffset;
-            li.innerHTML = `<span class="marker-time">⏱ ${displayTime.toFixed(2)}s</span>`;
-            const input = document.createElement('input'); input.type = "text"; input.className = "marker-input"; input.placeholder = "コメント..."; input.value = marker.label || "";
-            input.onclick = (e) => e.stopPropagation(); input.oninput = (e) => { marker.label = e.target.value; };
-            li.appendChild(input);
-            const delBtn = document.createElement('span'); delBtn.className = 'marker-delete'; delBtn.textContent = '削除';
-            delBtn.onclick = (e) => { e.stopPropagation(); deleteMarker(index); };
-            li.appendChild(delBtn);
-            li.onclick = () => { video.currentTime = displayTime; if (chartInstance) chartInstance.draw(); };
-            li.onmouseenter = () => { hoveredListMarkerIndex = index; if (chartInstance) chartInstance.draw(); };
-            li.onmouseleave = () => { hoveredListMarkerIndex = -1; if (chartInstance) chartInstance.draw(); };
-            markerListEl.appendChild(li);
-        });
-    }
+// ===== Chart =====
+function initChart(state, video, gazeCtx, gazeCanvas) {
+    const canvas = document.getElementById(`myChart-${state.id}`);
+    if (!canvas) return;
+    const emptyDatasets = TARGET_COLUMNS.map((key, i) => ({
+        label: key, data: [], borderColor: COLOR_PALETTE[i], backgroundColor: COLOR_PALETTE[i], borderWidth: 2, pointRadius: 0, tension: 0, fill: false
+    }));
+    buildChart(state, canvas, video, gazeCtx, gazeCanvas, [], emptyDatasets);
+}
 
-    // ===== UI – value boxes =====
-    function createValueBoxes(columns) {
-        valuesDisplay.innerHTML = ''; videoOverlay.innerHTML = '';
-        columns.forEach((key, index) => {
-            const color = colorPalette[index % colorPalette.length];
-            const div = document.createElement('div'); div.className = 'value-box'; div.style.borderTopColor = color; div.dataset.baseColor = color;
-            div.innerHTML = `<span class="label" style="color:${color};">${key}</span><strong id="val-${index}">-</strong>`;
-            valuesDisplay.appendChild(div);
-            const row = document.createElement('div'); row.className = 'overlay-row'; row.dataset.baseColor = color; row.style.color = color;
-            row.innerHTML = `<span>${key}</span><span id="ov-val-${index}" class="overlay-value">-</span>`;
-            videoOverlay.appendChild(row);
-        });
-    }
-    createValueBoxes(targetColumns);
-    initEmptyChart();
-    function initEmptyChart() {
-        const emptyDatasets = targetColumns.map((key, index) => ({
-            label: key, data: [], borderColor: colorPalette[index], backgroundColor: colorPalette[index], borderWidth: 2, pointRadius: 0, tension: 0, fill: false
-        }));
-        drawChart([], emptyDatasets);
-    }
-
-    // ===== Offset =====
-    window.adjustOffset = function(delta) { currentOffset = parseFloat((currentOffset + delta).toFixed(2)); offsetInput.value = currentOffset.toFixed(2); updateChartDataWithOffset(); renderMarkerList(); };
-    window.applyOffsetFromInput = function() { const val = parseFloat(offsetInput.value); if (!isNaN(val)) { currentOffset = val; updateChartDataWithOffset(); renderMarkerList(); } };
-    function updateChartDataWithOffset() {
-        if (rawCsvData.length === 0) return;
-        displayCsvData = rawCsvData.map(row => ({ time: row.time + currentOffset, values: row.values }));
-        labels = displayCsvData.map(row => row.time);
-        if (chartInstance) {
-            chartInstance.data.labels = labels;
-            chartInstance.data.datasets.forEach((dataset, i) => { dataset.data = displayCsvData.map(row => row.values[i]); });
-            chartInstance.update('none');
-            updateValuesForTime(video.currentTime);
-        }
-    }
-
-    // ===== CSV save =====
-    function formatOutputTimestamp(ms) {
-        const d = new Date(ms); const pad = (n) => String(n).padStart(2, '0'); const pad3 = (n) => String(n).padStart(3, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad3(d.getMilliseconds())}`;
-    }
-    function parseTimestamp(str) {
-        if (!str) return 0;
-        const d = new Date(str);
-        return isNaN(d.getTime()) ? 0 : d.getTime();
-    }
-    function getNowFormatted() {
-        const d = new Date(); const pad = (n) => String(n).padStart(2, '0');
-        return { iso: d.toLocaleString('ja-JP'), fileSuffix: `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}` };
-    }
-    window.downloadCSV = function() {
-        if (rawCsvData.length === 0) { alert("データがありません"); return; }
-        currentFileSequence++;
-        const seqStr = String(currentFileSequence).padStart(3, '0');
-        const now = getNowFormatted();
-        const newFileName = `${originalFileBaseName}_${now.fileSuffix}_${seqStr}.csv`;
-        const metaData = { editDate: now.iso, offset: currentOffset, markers: markers, editor: editorInput.value.trim(), videoComment: currentVideoComment, globalThreshold: globalThreshold };
-        let csvContent = `# APP_DATA=${JSON.stringify(metaData)}\n`;
-        const hasNoise = (rawCsvData[0].noise !== undefined); const hasComment = (rawCsvData[0].comment !== undefined);
-        csvContent += "Timestamp," + targetColumns.join(",") + (hasNoise ? ",Noise" : "") + (hasComment ? ",Comment" : "") + "\n";
-        rawCsvData.forEach(row => {
-            const originalMs = globalStartTime + (row.time * 1000); const tsStr = formatOutputTimestamp(originalMs); const valStr = row.values.join(",");
-            const noiseStr = hasNoise ? "," + row.noise : ""; const commentStr = hasComment ? "," + (row.comment || "") : "";
-            csvContent += `${tsStr},${valStr}${noiseStr}${commentStr}\n`;
-        });
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
-        const link = document.createElement("a"); link.setAttribute("href", url); link.setAttribute("download", newFileName);
-        link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    };
-
-    function formatDate(date) {
-        if (!date || isNaN(date.getTime())) return '-';
-        return date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-
-    videoInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            video.src = URL.createObjectURL(file);
-            const fileDate = new Date(file.lastModified);
-            videoMeta.innerHTML = `<span class="meta-item"><span class="meta-icon">📅</span>更新日時: ${formatDate(fileDate)}</span> 読込中...`;
-            document.getElementById('videoMetaBar').textContent = '🎬 ' + file.name;
-        } else { videoMeta.textContent = '未選択'; document.getElementById('videoMetaBar').textContent = '🎬 動画: 未選択'; }
-    });
-    video.addEventListener('loadedmetadata', () => {
-        const currentHTML = videoMeta.innerHTML.split('読込中...')[0];
-        const duration = video.duration; const min = Math.floor(duration / 60); const sec = Math.floor(duration % 60); const resolutionStr = `${video.videoWidth} x ${video.videoHeight}`;
-        videoMeta.innerHTML = `${currentHTML}<span class="meta-item"><span class="meta-icon">⏱</span>長さ: ${min}分${sec}秒</span><span class="meta-item"><span class="meta-icon">📐</span>解像度: ${resolutionStr}</span>`;
-        resizeGazeCanvas();
-    });
-
-    csvInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) { csvMeta.textContent = '未選択'; return; }
-        const name = file.name; const lastDot = name.lastIndexOf('.');
-        let baseName = (lastDot !== -1) ? name.substring(0, lastDot) : name;
-        const patternNewWithSeq = /^(.*)_(\d{12,14})_(\d{3})$/;
-        const patternNewNoSeq = /^(.*)_(\d{12,14})$/;
-        const patternOldWithSeq = /^(.*)_(\d{8})_(\d{4,6})_(\d{3})$/;
-        const patternOldNoSeq = /^(.*)_(\d{8})_(\d{4,6})$/;
-        let sequence = 0; let match;
-        if ((match = baseName.match(patternNewWithSeq))) { baseName = match[1]; sequence = parseInt(match[3], 10); }
-        else if ((match = baseName.match(patternNewNoSeq))) { baseName = match[1]; sequence = 0; }
-        else if ((match = baseName.match(patternOldWithSeq))) { baseName = match[1]; sequence = parseInt(match[4], 10); }
-        else if ((match = baseName.match(patternOldNoSeq))) { baseName = match[1]; sequence = 0; }
-        originalFileBaseName = baseName; currentFileSequence = sequence;
-        editorInput.value = ""; currentVideoComment = ""; videoCommentInput.value = "";
-        csvMeta.textContent = '読込中...';
-        document.getElementById('csvMetaBar').textContent = '📄 ' + file.name;
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            const text = evt.target.result;
-            const lines = text.split(/\r\n|\n/);
-            fileHeaderLines = []; rawCsvData = []; lastLoadedMetadata = null;
-            currentOffset = 0.0; markers = []; offsetInput.value = "0.00";
-
-            if (lines[0].startsWith('# APP_DATA=')) {
-                // ===== 保存済みCSVの再読込 =====
-                processSavedCSV(text, lines);
-            } else {
-                // ===== オリジナルCSVの読込 =====
-                if (lines.length < 7) { alert("CSVフォーマットエラー: 行数が不足しています"); return; }
-                for (let i = 0; i < 6; i++) { fileHeaderLines.push(lines[i]); }
-                const line2 = lines[1].split(','); const metaDate = line2[0] || "-"; const metaScore = line2[2] || "-";
-                const line6 = lines[5].split(',');
-                metaScreenX = parseInt(line6[0]) || 1920; metaScreenY = parseInt(line6[1]) || 1200;
-                const metaRes = (line6[0] && line6[1]) ? `${line6[0]}x${line6[1]}` : "-";
-                const metaCount = line6[2] || "-";
-                const dataString = lines.slice(6).join("\n");
-                Papa.parse(dataString, {
-                    header: true, comments: "#", dynamicTyping: true, skipEmptyLines: true,
-                    complete: function(results) { processDataNew(results.data, metaDate, metaScore, metaRes, metaCount); }
-                });
-            }
-        };
-        reader.readAsText(file);
-    });
-
-    // ===== 保存済みCSV再読込 =====
-    function processSavedCSV(text, lines) {
-        // APP_DATA (先頭行) からメタデータ復元
-        try {
-            lastLoadedMetadata = JSON.parse(lines[0].replace('# APP_DATA=', ''));
-            if (lastLoadedMetadata.offset !== undefined) { currentOffset = lastLoadedMetadata.offset; offsetInput.value = currentOffset.toFixed(2); }
-            if (lastLoadedMetadata.markers) { markers = lastLoadedMetadata.markers; }
-            if (lastLoadedMetadata.editor) { editorInput.value = lastLoadedMetadata.editor; }
-            if (lastLoadedMetadata.videoComment) { currentVideoComment = lastLoadedMetadata.videoComment; videoCommentInput.value = currentVideoComment; }
-            if (lastLoadedMetadata.globalThreshold !== undefined) { globalThreshold = lastLoadedMetadata.globalThreshold; globalThresholdInput.value = globalThreshold; }
-        } catch(e) { console.error("APP_DATA parse error", e); }
-
-        Papa.parse(text, {
-            header: true, dynamicTyping: true, skipEmptyLines: true, comments: '#',
-            complete: function(results) {
-                const data = results.data;
-                if (!data.length || data[0]['Gaze_X'] === undefined) { alert("有効な視線データが読み取れませんでした。"); return; }
-
-                // 先頭タイムスタンプを基準時刻として設定
-                globalStartTime = parseTimestamp(data[0]['Timestamp']);
-
-                rawCsvData = data.map(row => ({
-                    time: (parseTimestamp(row['Timestamp']) - globalStartTime) / 1000,
-                    values: [row['Gaze_X'], row['Gaze_Y']],
-                    noise: row['Noise'],
-                    comment: row['Comment']
-                })).filter(r => typeof r.values[0] === 'number' && typeof r.values[1] === 'number');
-
-                if (rawCsvData.length === 0) { alert("有効な視線データが読み取れませんでした。"); return; }
-
-                let metaHTML = `<span class="meta-item"><span class="meta-icon">♻️</span>再読込</span>`;
-                if (lastLoadedMetadata.editDate) { metaHTML += `<span class="meta-item"><span class="meta-icon">📝</span>Edited: <span class="meta-highlight">${lastLoadedMetadata.editDate}</span></span>`; }
-                if (lastLoadedMetadata.editor) { metaHTML += `<span class="meta-item"><span class="meta-icon">👤</span>Editor: <span class="meta-highlight">${lastLoadedMetadata.editor}</span></span>`; }
-                csvMeta.innerHTML = metaHTML; downloadBtn.disabled = false;
-
-                createValueBoxes(targetColumns); renderMarkerList();
-                const datasets = targetColumns.map((key, i) => ({ label: key, data: [], borderColor: colorPalette[i], backgroundColor: colorPalette[i], borderWidth: 1, pointRadius: 0, tension: 0, fill: false }));
-                drawChart([], datasets); updateChartDataWithOffset();
-            }
-        });
-    }
-
-    function processDataNew(data, date, score, res, count) {
-        let tempData = [];
-        data.forEach(row => {
-            const t = row['#GameTime']; const x = row['Gaze_X']; const y = row['Gaze_Y'];
-            if (typeof t === 'number' && typeof x === 'number' && typeof y === 'number') { tempData.push({ time: t, values: [x, y] }); }
-        });
-        if (tempData.length === 0) { alert("有効な視線データが読み取れませんでした。"); csvMeta.textContent = 'エラー: データなし'; downloadBtn.disabled = true; return; }
-
-        // 元CSVの日時ヘッダーから基準時刻を設定
-        globalStartTime = parseTimestamp(date) || 0;
-
-        let metaHTML = `<span class="meta-item"><span class="meta-icon">📅</span>Play: ${date}</span><span class="meta-item"><span class="meta-icon">🏆</span>Score: ${score}</span><span class="meta-item"><span class="meta-icon">📐</span>Res: ${res}</span>`;
-        csvMeta.innerHTML = metaHTML; downloadBtn.disabled = false;
-        rawCsvData = tempData;
-        createValueBoxes(targetColumns); renderMarkerList(); updateChartDataWithOffset();
-        const datasets = [
-            { label: 'Gaze_X', data: [], borderColor: colorPalette[0], backgroundColor: colorPalette[0], borderWidth: 1, pointRadius: 0, tension: 0, fill: false },
-            { label: 'Gaze_Y', data: [], borderColor: colorPalette[1], backgroundColor: colorPalette[1], borderWidth: 1, pointRadius: 0, tension: 0, fill: false }
-        ];
-        drawChart([], datasets); updateChartDataWithOffset();
-    }
-
-    function drawChart(initialLabels, initialDatasets) {
-        if (chartInstance) chartInstance.destroy();
-        const ctx = canvas.getContext('2d');
-        const markerPlugin = {
-            id: 'markerLine',
-            beforeDatasetsDraw: (chart) => {
-                if (markers.length === 0) return;
-                const ctx = chart.ctx; const chartArea = chart.chartArea; const xAxis = chart.scales.x;
-                markers.forEach((marker, index) => {
-                    const displayTime = marker.time + currentOffset; const x = xAxis.getPixelForValue(displayTime);
-                    if (x < chartArea.left || x > chartArea.right) return;
-                    const isHovered = (index === hoveredListMarkerIndex) || (index === hoveredGraphMarkerIndex);
-                    const topY = chartArea.top - 20;
-                    ctx.save(); ctx.beginPath(); ctx.lineWidth = isHovered ? 4 : 2; ctx.strokeStyle = isHovered ? '#e67e22' : '#f1c40f';
-                    ctx.moveTo(x, topY); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
-                    ctx.fillStyle = isHovered ? '#e67e22' : '#f1c40f'; ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x + (isHovered ? 12 : 8), topY + (isHovered ? 8 : 5)); ctx.lineTo(x, topY + (isHovered ? 16 : 10)); ctx.fill();
-                    if (isHovered) {
-                        const text = displayTime.toFixed(2) + "s"; ctx.font = "bold 12px sans-serif";
-                        const textWidth = ctx.measureText(text).width; const boxPadding = 4; const boxX = x + 10; const boxY = chartArea.top + 20;
-                        ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(boxX, boxY - 12, textWidth + boxPadding * 2, 20);
-                        ctx.fillStyle = "#fff"; ctx.fillText(text, boxX + boxPadding, boxY + 2);
-                        if (marker.label) {
-                            const labelWidth = ctx.measureText(marker.label).width;
-                            ctx.fillStyle = "rgba(52,152,219,0.9)"; ctx.fillRect(boxX, boxY + 12, labelWidth + boxPadding * 2, 20);
-                            ctx.fillStyle = "#fff"; ctx.fillText(marker.label, boxX + boxPadding, boxY + 26);
-                        }
-                    }
-                    ctx.restore();
-                });
-            }
-        };
-        const verticalLinePlugin = {
-            id: 'verticalLine',
-            afterDraw: (chart) => {
-                const currentTime = video.duration ? video.currentTime : 0;
-                let x; try { x = chart.scales.x.getPixelForValue(currentTime); } catch(e) { return; }
-                const { top, bottom } = chart.scales.y;
-                const ctx = chart.ctx; ctx.save(); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.lineWidth = 2; ctx.strokeStyle = '#e74c3c'; ctx.stroke();
-                const timeString = currentTime.toFixed(2) + ' s'; ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(timeString, x, top - 5);
+function buildChart(state, canvas, video, gazeCtx, gazeCanvas, initialLabels, initialDatasets) {
+    if (state.chartInstance) state.chartInstance.destroy();
+    const ctx = canvas.getContext('2d');
+    const markerPlugin = {
+        id: 'markerLine',
+        beforeDatasetsDraw: chart => {
+            if (state.markers.length === 0) return;
+            const { ctx, chartArea, scales: { x: xAxis } } = chart;
+            state.markers.forEach((marker, index) => {
+                const displayTime = marker.time + state.currentOffset;
+                const x = xAxis.getPixelForValue(displayTime);
+                if (x < chartArea.left || x > chartArea.right) return;
+                const isHovered = index === state.hoveredListMarkerIndex || index === state.hoveredGraphMarkerIndex;
+                const topY = chartArea.top - 20;
+                ctx.save(); ctx.beginPath(); ctx.lineWidth = isHovered ? 4 : 2; ctx.strokeStyle = isHovered ? '#e67e22' : '#f1c40f';
+                ctx.moveTo(x, topY); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+                ctx.fillStyle = isHovered ? '#e67e22' : '#f1c40f'; ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x + (isHovered ? 12 : 8), topY + (isHovered ? 8 : 5)); ctx.lineTo(x, topY + (isHovered ? 16 : 10)); ctx.fill();
+                if (isHovered && marker.label) {
+                    ctx.font = 'bold 12px sans-serif';
+                    const lw = ctx.measureText(marker.label).width, pad = 4, bx = x + 10, by = chartArea.top + 20;
+                    ctx.fillStyle = 'rgba(52,152,219,0.9)'; ctx.fillRect(bx, by, lw + pad * 2, 20);
+                    ctx.fillStyle = '#fff'; ctx.fillText(marker.label, bx + pad, by + 14);
+                }
                 ctx.restore();
-                updateValuesForTime(currentTime);
-            }
-        };
-        chartInstance = new Chart(ctx, {
-            type: 'line', data: { labels: initialLabels, datasets: initialDatasets },
-            options: {
-                responsive: true, maintainAspectRatio: false, animation: false,
-                interaction: { mode: 'none' }, events: [], layout: { padding: { top: 40 } },
-                scales: { x: { type: 'linear', display: true, title: { display: true, text: 'Time (sec)' } }, y: { grid: { color: '#ecf0f1' } } },
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip: { enabled: false } }
-            },
-            plugins: [markerPlugin, verticalLinePlugin]
-        });
-        setupDraggableChart();
-    }
-
-    function setupDraggableChart() {
-        canvas.addEventListener('mousedown', (e) => {
-            if (hoveredGraphMarkerIndex !== -1) { isDraggingMarker = true; draggedMarkerIndex = hoveredGraphMarkerIndex; }
-            else { isDragging = true; seekVideoByMouse(e); }
-        });
-        canvas.addEventListener('mousemove', (e) => {
-            if (isDraggingMarker) { moveMarkerByMouse(e); }
-            else if (isDragging) { seekVideoByMouse(e); }
-            else { checkMarkerHover(e); }
-        });
-        window.addEventListener('mouseup', () => {
-            if (isDraggingMarker) { markers.sort((a, b) => a.time - b.time); renderMarkerList(); isDraggingMarker = false; draggedMarkerIndex = -1; chartInstance.draw(); }
-            isDragging = false;
-        });
-    }
-    function checkMarkerHover(e) {
-        if (!chartInstance || markers.length === 0) return;
-        const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const scaleX = chartInstance.scales.x; const thresholdPx = 10;
-        let foundIndex = -1;
-        for (let i = 0; i < markers.length; i++) {
-            const markerPixel = scaleX.getPixelForValue(markers[i].time + currentOffset);
-            if (Math.abs(markerPixel - mouseX) < thresholdPx) { foundIndex = i; break; }
+            });
         }
-        if (foundIndex !== -1) { canvas.style.cursor = 'ew-resize'; } else { canvas.style.cursor = 'crosshair'; }
-        if (foundIndex !== hoveredGraphMarkerIndex) { hoveredGraphMarkerIndex = foundIndex; chartInstance.draw(); }
-    }
-    function seekVideoByMouse(e) {
-        if (!chartInstance || !video.duration) return;
-        const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const scaleX = chartInstance.scales.x;
-        let time = scaleX.getValueForPixel(mouseX);
-        time = Math.max(0, Math.min(video.duration, Math.max(scaleX.min, Math.min(scaleX.max, time))));
-        video.currentTime = time; chartInstance.draw();
-    }
-    function moveMarkerByMouse(e) {
-        if (!chartInstance || draggedMarkerIndex === -1) return;
-        const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const scaleX = chartInstance.scales.x;
-        let displayTime = scaleX.getValueForPixel(mouseX);
-        let newMarkerTime = displayTime - currentOffset;
-        newMarkerTime = Math.max(0, Math.min(video.duration, newMarkerTime));
-        markers[draggedMarkerIndex].time = newMarkerTime; chartInstance.draw();
-    }
+    };
+    const verticalLinePlugin = {
+        id: 'verticalLine',
+        afterDraw: chart => {
+            const ct = video.duration ? video.currentTime : 0;
+            let x; try { x = chart.scales.x.getPixelForValue(ct); } catch(e) { return; }
+            const { top, bottom } = chart.scales.y;
+            const ctx = chart.ctx; ctx.save(); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.lineWidth = 2; ctx.strokeStyle = '#e74c3c'; ctx.stroke();
+            ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(ct.toFixed(2) + ' s', x, top - 5);
+            ctx.restore();
+            updateValuesForTime(state, gazeCtx, ct);
+        }
+    };
+    state.chartInstance = new Chart(ctx, {
+        type: 'line', data: { labels: initialLabels, datasets: initialDatasets },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            interaction: { mode: 'none' }, events: [], layout: { padding: { top: 40 } },
+            scales: { x: { type: 'linear', display: true, title: { display: true, text: 'Time (sec)' } }, y: { grid: { color: '#ecf0f1' } } },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip: { enabled: false } }
+        },
+        plugins: [markerPlugin, verticalLinePlugin]
+    });
+    setupDraggableChart(state, canvas, video);
+}
 
-    // ===== Gaze draw =====
-    function drawGaze(currentIndex) {
-        gazeCtx.clearRect(0, 0, gazeCanvas.width, gazeCanvas.height);
-        if (!isGazeVisible || currentIndex === 0) return;
-        const trailLength = 30;
-        const startIndex = Math.max(0, currentIndex - trailLength);
-        const endIndex = currentIndex;
-        const scaleX = gazeCanvas.width / metaScreenX;
-        const scaleY = gazeCanvas.height / metaScreenY;
-        gazeCtx.beginPath(); gazeCtx.lineWidth = 3;
-        gazeCtx.strokeStyle = 'rgba(52,152,219,0.7)'; gazeCtx.lineCap = 'round'; gazeCtx.lineJoin = 'round';
-        let firstPoint = true;
-        for (let i = startIndex; i <= endIndex; i++) {
-            const point = displayCsvData[i]; if (!point) continue;
-            const gx = point.values[0] * scaleX; const gy = point.values[1] * scaleY;
-            if (firstPoint) { gazeCtx.moveTo(gx, gy); firstPoint = false; } else { gazeCtx.lineTo(gx, gy); }
-        }
-        gazeCtx.stroke();
-        const currentPoint = displayCsvData[endIndex];
-        if (currentPoint) {
-            const cx = currentPoint.values[0] * scaleX; const cy = currentPoint.values[1] * scaleY;
-            gazeCtx.beginPath(); gazeCtx.arc(cx, cy, 8, 0, 2 * Math.PI);
-            gazeCtx.fillStyle = 'rgba(231,76,60,0.9)'; gazeCtx.fill();
-            gazeCtx.strokeStyle = 'white'; gazeCtx.lineWidth = 2; gazeCtx.stroke();
-        }
-    }
+function setupDraggableChart(state, canvas, video) {
+    canvas.addEventListener('mousedown', e => {
+        if (state.hoveredGraphMarkerIndex !== -1) { state.isDraggingMarker = true; state.draggedMarkerIndex = state.hoveredGraphMarkerIndex; }
+        else { state.isDragging = true; seekByMouse(state, canvas, video, e); }
+    });
+    canvas.addEventListener('mousemove', e => {
+        if (state.isDraggingMarker) moveMarkerByMouse(state, canvas, e);
+        else if (state.isDragging) seekByMouse(state, canvas, video, e);
+        else checkMarkerHover(state, canvas, e);
+    });
+    document.addEventListener('mouseup', () => {
+        if (state.isDraggingMarker) { state.markers.sort((a,b)=>a.time-b.time); renderMarkerList(state); state.isDraggingMarker = false; state.draggedMarkerIndex = -1; if (state.chartInstance) state.chartInstance.draw(); }
+        state.isDragging = false;
+    });
+}
+function checkMarkerHover(state, canvas, e) {
+    if (!state.chartInstance || state.markers.length === 0) return;
+    const rect = canvas.getBoundingClientRect(), mouseX = e.clientX - rect.left, scaleX = state.chartInstance.scales.x;
+    let found = -1;
+    for (let i = 0; i < state.markers.length; i++) { if (Math.abs(scaleX.getPixelForValue(state.markers[i].time + state.currentOffset) - mouseX) < 10) { found = i; break; } }
+    canvas.style.cursor = found !== -1 ? 'ew-resize' : 'crosshair';
+    if (found !== state.hoveredGraphMarkerIndex) { state.hoveredGraphMarkerIndex = found; state.chartInstance.draw(); }
+}
+function seekByMouse(state, canvas, video, e) {
+    if (!state.chartInstance || !video.duration) return;
+    const rect = canvas.getBoundingClientRect(), mouseX = e.clientX - rect.left, scaleX = state.chartInstance.scales.x;
+    video.currentTime = Math.max(0, Math.min(video.duration, scaleX.getValueForPixel(mouseX)));
+    state.chartInstance.draw();
+}
+function moveMarkerByMouse(state, canvas, e) {
+    if (!state.chartInstance || state.draggedMarkerIndex === -1) return;
+    const rect = canvas.getBoundingClientRect(), mouseX = e.clientX - rect.left, scaleX = state.chartInstance.scales.x;
+    const video = document.getElementById(`video-${state.id}`);
+    state.markers[state.draggedMarkerIndex].time = Math.max(0, Math.min(video ? video.duration : Infinity, scaleX.getValueForPixel(mouseX) - state.currentOffset));
+    state.chartInstance.draw();
+}
 
-    function updateValuesForTime(currentTime) {
-        if (displayCsvData.length === 0) return;
-        let closestIndex = 0; let minDiff = Infinity;
-        for (let i = 0; i < displayCsvData.length; i++) {
-            const diff = Math.abs(displayCsvData[i].time - currentTime);
-            if (diff < minDiff) { minDiff = diff; closestIndex = i; } else if (diff > 2.0 && i > 50) { break; }
+// ===== File loading =====
+function loadVideoFileIntoState(state, file) {
+    const id = state.id;
+    state.videoFile = file; state.videoLoaded = true;
+    const video = document.getElementById(`video-${id}`);
+    video.src = URL.createObjectURL(file);
+    const fileDate = new Date(file.lastModified);
+    const ds = fileDate.toLocaleString('ja-JP');
+    document.getElementById(`videoMeta-${id}`).innerHTML = `<span class="meta-item">📅 ${ds}</span> 読込中...`;
+    const bar = document.getElementById(`fileBarVideo-${id}`);
+    if (bar) { bar.textContent = '🎬 ' + file.name; bar.classList.add('loaded'); }
+    video.onloadedmetadata = () => {
+        const min = Math.floor(video.duration / 60), sec = Math.floor(video.duration % 60);
+        document.getElementById(`videoMeta-${id}`).innerHTML = `<span class="meta-item">📅 ${ds}</span><span class="meta-item">⏱ ${min}分${sec}秒</span><span class="meta-item">📐 ${video.videoWidth}×${video.videoHeight}</span>`;
+        if (bar) bar.textContent = `🎬 ${min}:${String(sec).padStart(2,'0')} | ${video.videoWidth}×${video.videoHeight}`;
+        const gazeCanvas = document.getElementById(`gazeCanvas-${id}`);
+        const vw = document.getElementById(`videoWrapper-${id}`);
+        if (gazeCanvas && vw) { gazeCanvas.width = vw.clientWidth; gazeCanvas.height = vw.clientHeight; }
+    };
+}
+
+function loadCsvFileIntoState(state, file) {
+    const id = state.id;
+    // ファイル名からベース名とシーケンス番号を抽出
+    const name = file.name; const lastDot = name.lastIndexOf('.');
+    let baseName = (lastDot !== -1) ? name.substring(0, lastDot) : name;
+    const patternNewWithSeq = /^(.*)_(\d{12,14})_(\d{3})$/;
+    const patternNewNoSeq = /^(.*)_(\d{12,14})$/;
+    const patternOldWithSeq = /^(.*)_(\d{8})_(\d{4,6})_(\d{3})$/;
+    const patternOldNoSeq = /^(.*)_(\d{8})_(\d{4,6})$/;
+    let sequence = 0; let match;
+    if ((match = baseName.match(patternNewWithSeq))) { baseName = match[1]; sequence = parseInt(match[3], 10); }
+    else if ((match = baseName.match(patternNewNoSeq))) { baseName = match[1]; sequence = 0; }
+    else if ((match = baseName.match(patternOldWithSeq))) { baseName = match[1]; sequence = parseInt(match[4], 10); }
+    else if ((match = baseName.match(patternOldNoSeq))) { baseName = match[1]; sequence = 0; }
+    state.originalFileBaseName = baseName; state.currentFileSequence = sequence;
+
+    document.getElementById(`csvMeta-${id}`).textContent = '読込中...';
+    const bar = document.getElementById(`fileBarCsv-${id}`);
+    if (bar) { bar.textContent = '📄 ' + file.name; bar.classList.add('loaded'); }
+
+    const reader = new FileReader();
+    reader.onload = evt => {
+        const text = evt.target.result;
+        const lines = text.split(/\r\n|\n/);
+        state.fileHeaderLines = []; state.rawCsvData = [];
+        state.currentOffset = 0.0; state.markers = [];
+        document.getElementById(`offsetInput-${id}`).value = '0.00';
+        state.currentVideoComment = ''; document.getElementById(`videoCommentInput-${id}`).value = '';
+        document.getElementById(`editorInput-${id}`).value = '';
+
+        if (lines[0].startsWith('# APP_DATA=')) {
+            processSavedCSV(state, text, lines);
+        } else {
+            if (lines.length < 7) { alert('CSVフォーマットエラー: 行数が不足しています'); return; }
+            for (let i = 0; i < 6; i++) state.fileHeaderLines.push(lines[i]);
+            const line2 = lines[1].split(',');
+            const metaDate = line2[0] || '-'; const metaScore = line2[2] || '-';
+            const line6 = lines[5].split(',');
+            state.metaScreenX = parseInt(line6[0]) || 1920; state.metaScreenY = parseInt(line6[1]) || 1200;
+            state.globalStartTime = parseTimestamp(metaDate) || 0;
+            const metaRes = `${line6[0]}x${line6[1]}`;
+            Papa.parse(lines.slice(6).join('\n'), {
+                header: true, comments: '# ', dynamicTyping: true, skipEmptyLines: true,
+                complete: results => processOriginalData(state, results.data, metaDate, metaScore, metaRes)
+            });
         }
-        drawGaze(closestIndex);
-        const row = displayCsvData[closestIndex]; if (!row) return;
-        row.values.forEach((val, i) => {
-            const valEl = document.getElementById(`val-${i}`); const boxEl = valEl ? valEl.closest('.value-box') : null;
-            if (valEl && boxEl) {
-                const currentVal = val !== null ? val : 0; valEl.textContent = val !== null ? val.toFixed(1) : '-';
-                if (currentVal >= globalThreshold) { boxEl.classList.add('alert'); boxEl.style.backgroundColor = boxEl.dataset.baseColor; boxEl.style.borderColor = boxEl.dataset.baseColor; }
-                else { boxEl.classList.remove('alert'); boxEl.style.backgroundColor = '#fff'; boxEl.style.borderTopColor = boxEl.dataset.baseColor; boxEl.style.borderColor = ''; }
-            }
+    };
+    reader.readAsText(file);
+}
+
+function processSavedCSV(state, text, lines) {
+    const id = state.id;
+    try {
+        const meta = JSON.parse(lines[0].replace('# APP_DATA=', ''));
+        if (meta.offset !== undefined) { state.currentOffset = meta.offset; document.getElementById(`offsetInput-${id}`).value = state.currentOffset.toFixed(2); }
+        if (meta.markers) state.markers = meta.markers;
+        if (meta.editor) document.getElementById(`editorInput-${id}`).value = meta.editor;
+        if (meta.videoComment) { state.currentVideoComment = meta.videoComment; document.getElementById(`videoCommentInput-${id}`).value = meta.videoComment; }
+        if (meta.globalThreshold !== undefined) { state.globalThreshold = meta.globalThreshold; document.getElementById(`globalThresholdInput-${id}`).value = meta.globalThreshold; }
+    } catch(e) { console.error('APP_DATA parse error', e); }
+
+    Papa.parse(text, {
+        header: true, dynamicTyping: true, skipEmptyLines: true, comments: '#',
+        complete: results => {
+            const data = results.data;
+            if (!data.length || data[0]['Gaze_X'] === undefined) { alert('有効な視線データが読み取れませんでした。'); return; }
+            state.globalStartTime = parseTimestamp(data[0]['Timestamp']) || 0;
+            state.rawCsvData = data.map(row => ({
+                time: (parseTimestamp(row['Timestamp']) - state.globalStartTime) / 1000,
+                values: [row['Gaze_X'], row['Gaze_Y']],
+                noise: row['Noise'], comment: row['Comment']
+            })).filter(r => typeof r.values[0] === 'number' && typeof r.values[1] === 'number');
+            if (!state.rawCsvData.length) { alert('有効な視線データが読み取れませんでした。'); return; }
+            let html = `<span class="meta-item"><span class="meta-icon">♻️</span>再読込</span>`;
+            document.getElementById(`csvMeta-${id}`).innerHTML = html;
+            document.getElementById(`downloadBtn-${id}`).disabled = false;
+            finalizeDataLoad(state);
+        }
+    });
+}
+
+function processOriginalData(state, data, date, score, res) {
+    const id = state.id;
+    const tempData = [];
+    data.forEach(row => {
+        const t = row['#GameTime'], x = row['Gaze_X'], y = row['Gaze_Y'];
+        if (typeof t === 'number' && typeof x === 'number' && typeof y === 'number') tempData.push({ time: t, values: [x, y] });
+    });
+    if (!tempData.length) { alert('有効な視線データが読み取れませんでした。'); document.getElementById(`csvMeta-${id}`).textContent = 'エラー: データなし'; return; }
+    let html = `<span class="meta-item"><span class="meta-icon">📅</span>Play: ${date}</span><span class="meta-item"><span class="meta-icon">🏆</span>Score: ${score}</span><span class="meta-item"><span class="meta-icon">📐</span>Res: ${res}</span>`;
+    document.getElementById(`csvMeta-${id}`).innerHTML = html;
+    document.getElementById(`downloadBtn-${id}`).disabled = false;
+    state.rawCsvData = tempData;
+    finalizeDataLoad(state);
+}
+
+function finalizeDataLoad(state) {
+    createValueBoxes(state);
+    renderMarkerList(state);
+    state.displayCsvData = state.rawCsvData.map(row => ({ time: row.time + state.currentOffset, values: row.values }));
+    const canvas = document.getElementById(`myChart-${state.id}`);
+    const video = document.getElementById(`video-${state.id}`);
+    const gazeCtx = document.getElementById(`gazeCanvas-${state.id}`).getContext('2d');
+    const gazeCanvas = document.getElementById(`gazeCanvas-${state.id}`);
+    if (!canvas || !video) return;
+    const datasets = TARGET_COLUMNS.map((key, i) => ({
+        label: key, data: state.displayCsvData.map(r => r.values[i]),
+        borderColor: COLOR_PALETTE[i], backgroundColor: COLOR_PALETTE[i], borderWidth: 1, pointRadius: 0, tension: 0, fill: false
+    }));
+    buildChart(state, canvas, video, gazeCtx, gazeCanvas, state.displayCsvData.map(r => r.time), datasets);
+}
+
+// ===== CSV Save =====
+function formatOutputTimestamp(ms) {
+    const d = new Date(ms), pad = n => String(n).padStart(2,'0'), pad3 = n => String(n).padStart(3,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad3(d.getMilliseconds())}`;
+}
+function parseTimestamp(str) { if (!str) return 0; const d = new Date(str); return isNaN(d.getTime()) ? 0 : d.getTime(); }
+function getNowFormatted() {
+    const d = new Date(), pad = n => String(n).padStart(2,'0');
+    return { iso: d.toLocaleString('ja-JP'), fileSuffix: `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}` };
+}
+window.downloadCSV = function(id) {
+    const state = getSet(id); if (!state || !state.rawCsvData.length) { alert('データがありません'); return; }
+    state.currentFileSequence++;
+    const seqStr = String(state.currentFileSequence).padStart(3,'0');
+    const now = getNowFormatted();
+    const meta = { editDate: now.iso, offset: state.currentOffset, markers: state.markers, editor: document.getElementById(`editorInput-${id}`).value.trim(), videoComment: state.currentVideoComment, globalThreshold: state.globalThreshold };
+    let csv = `# APP_DATA=${JSON.stringify(meta)}\n`;
+    const hasNoise = state.rawCsvData[0].noise !== undefined;
+    const hasComment = state.rawCsvData[0].comment !== undefined;
+    csv += 'Timestamp,' + TARGET_COLUMNS.join(',') + (hasNoise ? ',Noise' : '') + (hasComment ? ',Comment' : '') + '\n';
+    state.rawCsvData.forEach(row => {
+        const ts = formatOutputTimestamp(state.globalStartTime + row.time * 1000);
+        csv += `${ts},${row.values.join(',')}${hasNoise ? ',' + row.noise : ''}${hasComment ? ',' + (row.comment || '') : ''}\n`;
+    });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `${state.originalFileBaseName}_${now.fileSuffix}_${seqStr}.csv`;
+    a.style.visibility = 'hidden'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+};
+
+// ===== Batch loading =====
+function extractTsFromCsvName(name) {
+    const m = name.match(/(\d{12,14})/);
+    return m ? parseInt(m[1]) : null;
+}
+function pairFilesForBatch(files) {
+    const videos = [], csvs = [];
+    for (const f of files) {
+        if (/\.(mp4|webm|mov|avi|mkv)$/i.test(f.name)) videos.push(f);
+        else if (/\.csv$/i.test(f.name)) csvs.push(f);
+    }
+    return videos.map(video => {
+        const vBase = video.name.replace(/\.[^/.]+$/, '');
+        const matching = csvs.filter(csv => {
+            const cBase = csv.name.replace(/\.[^/.]+$/, '');
+            return cBase === vBase || cBase.startsWith(vBase + '_');
         });
-        row.values.forEach((val, i) => {
-            const ovValEl = document.getElementById(`ov-val-${i}`); const ovRowEl = ovValEl ? ovValEl.parentElement : null;
-            if (ovValEl && ovRowEl) {
-                const currentVal = val !== null ? val : 0; ovValEl.textContent = currentVal.toFixed(1); const baseColor = ovRowEl.dataset.baseColor;
-                if (currentVal >= globalThreshold) { ovRowEl.style.backgroundColor = baseColor; ovRowEl.style.color = '#fff'; ovRowEl.style.textShadow = 'none'; }
-                else { ovRowEl.style.backgroundColor = 'transparent'; ovRowEl.style.color = baseColor; ovRowEl.style.textShadow = '1px 1px 2px black'; }
-            }
-        });
-    }
+        const csv = matching.length === 0 ? null
+            : matching.reduce((a, b) => {
+                const tsA = extractTsFromCsvName(a.name) || a.lastModified;
+                const tsB = extractTsFromCsvName(b.name) || b.lastModified;
+                return tsB > tsA ? b : a;
+            });
+        return { video, csv };
+    });
+}
+window.handleBatchInput = function(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if (!files.length) return;
+    const allPairs = pairFilesForBatch(files);
+    if (!allPairs.length) { alert('動画ファイルが見つかりませんでした。'); return; }
+    const pairs = allPairs.filter(p => p.csv);
+    const noCsv = allPairs.filter(p => !p.csv);
+    if (!pairs.length) { alert('対応するCSVが見つかりませんでした。\n動画と同じ名前のCSVを同じフォルダに置いてください。'); return; }
 
-    function syncLoop() {
-        if (chartInstance && !isDragging && !isDraggingMarker && !video.paused) { chartInstance.draw(); }
-        requestAnimationFrame(syncLoop);
+    const firstEmpty = sets.length === 1 && sets[0].rawCsvData.length === 0 && !sets[0].videoLoaded;
+    let counter = Date.now();
+    pairs.forEach((pair, i) => {
+        let state;
+        if (i === 0 && firstEmpty) {
+            state = sets[0];
+        } else {
+            const id = 'set_' + (counter + i);
+            const idx = sets.length;
+            state = createSetState(id, `セット ${idx + 1}`, TAB_COLORS[idx % TAB_COLORS.length]);
+            sets.push(state); buildSetPanel(state);
+        }
+        loadVideoFileIntoState(state, pair.video);
+        loadCsvFileIntoState(state, pair.csv);
+    });
+    switchSet(firstEmpty ? sets[0].id : sets[sets.length - pairs.length].id);
+    if (noCsv.length) alert(`${pairs.length}セット読み込みました。\n⚠ CSV未対応の動画:\n` + noCsv.map(p => `  • ${p.video.name}`).join('\n'));
+};
+
+// ===== CSV-only batch (no video) =====
+// ドラッグ&ドロップでCSVのみ読込に対応
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (!files.length) return;
+    const csvFiles = files.filter(f => /\.csv$/i.test(f.name));
+    const videoFiles = files.filter(f => /\.(mp4|webm|mov|avi|mkv)$/i.test(f.name));
+    if (videoFiles.length || csvFiles.length) {
+        // 一括読込と同じ処理
+        const fakeInput = { files, value: '' };
+        window.handleBatchInput(fakeInput);
     }
-    syncLoop();
+});
+
+// ===== Initialize first set =====
+addNewSet();
 </script>
 </body>
 </html>
