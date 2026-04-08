@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaze Data Viewer (Visualized)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; padding: 20px; background: #f4f6f9; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { margin-top: 0; color: #444; text-align: center; margin-bottom: 25px; font-weight: 600; }
+        
+        .controls { 
+            margin-bottom: 15px; padding: 15px 20px; background: #eef2f6; border-radius: 8px; 
+            display: grid; gap: 15px; grid-template-columns: 1fr 1fr;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-weight: bold; font-size: 0.9em; color: #2c3e50; }
+        input[type="file"], input[type="text"] { 
+            background: white; padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; 
+            font-size: 0.9em;
+        }
+        input[type="text"]:focus, textarea:focus { outline: none; border-color: #3498db; box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); }
+
+        .metadata-box {
+            font-size: 0.8em; color: #555; background: #fff; 
+            padding: 8px; border-radius: 4px; border: 1px solid #ddd;
+            margin-top: 3px; min-height: 24px; line-height: 1.6;
+        }
+        .meta-item { display: inline-block; margin-right: 15px; white-space: nowrap; }
+        .meta-icon { margin-right: 4px; }
+        .meta-highlight { color: #d35400; font-weight: bold; background: #fff5e6; padding: 0 4px; border-radius: 3px; }
+
+        .download-area {
+            margin-top: 25px; padding-top: 20px; border-top: 2px dashed #eee; text-align: center;
+        }
+        .download-btn {
+            background: #3498db; color: white; border: none; padding: 12px 40px;
+            border-radius: 30px; font-size: 1.1em; cursor: pointer; font-weight: bold;
+            display: inline-flex; align-items: center; gap: 10px; transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+        .download-btn:hover { background: #2980b9; transform: translateY(-2px); }
+        .download-btn:active { transform: translateY(0); }
+        .download-btn:disabled { background: #bdc3c7; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        .media-container { display: flex; flex-direction: column; gap: 5px; }
+        
+        .video-wrapper {
+            position: relative; width: 100%; height: 400px; min-height: 200px;
+            background: black; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;
+        }
+        video { width: 100%; height: 100%; display: block; transition: filter 0.2s ease; object-fit: contain; }
+
+        /* ★ 視線描画用キャンバス */
+        .gaze-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; /* マウスイベントを透過 */
+            z-index: 5;
+        }
+
+        .resizer {
+            width: 100%; height: 12px; background: #eef2f6; cursor: row-resize;
+            border-radius: 4px; display: flex; justify-content: center; align-items: center;
+            margin-bottom: 10px; border: 1px solid #dee2e6; transition: background 0.2s;
+        }
+        .resizer:hover { background: #dce4ec; }
+        .resizer::after { content: "••••"; color: #999; letter-spacing: 2px; font-size: 10px; margin-top: -3px; }
+
+        .video-overlay {
+            position: absolute; top: 15px; right: 15px; 
+            background: rgba(0, 0, 0, 0.6); padding: 8px 10px; border-radius: 6px;
+            pointer-events: auto; cursor: move; display: flex; flex-direction: column; gap: 3px; 
+            z-index: 10; min-width: 130px; user-select: none; 
+        }
+        .overlay-row {
+            display: flex; justify-content: space-between; align-items: center;
+            font-family: 'Courier New', monospace; font-weight: bold; font-size: 0.85em; 
+            padding: 1px 4px; border-radius: 3px;
+            transition: background-color 0.1s, color 0.1s; text-shadow: 1px 1px 1px black;
+        }
+        .overlay-value { display: inline-block; width: 50px; text-align: right; }
+
+        .filter-overlay-container {
+            position: absolute; top: 15px; left: 15px; z-index: 20;
+            display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+        }
+        .filter-icon-btn {
+            background: rgba(0, 0, 0, 0.6); color: white; border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 50%; width: 40px; height: 40px; font-size: 1.2em;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .filter-icon-btn:hover, .filter-icon-btn.active { background: rgba(0,0,0,0.8); border-color: white; }
+        .filter-panel {
+            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);
+            padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+            color: white; display: flex; flex-direction: column; gap: 10px; width: 180px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .filter-header { font-size: 0.9em; font-weight: bold; text-align: center; margin-bottom: 5px; color: #ddd; border-bottom: 1px dashed #666; padding-bottom: 5px; }
+        .filter-item { display: flex; flex-direction: column; font-size: 0.8em; }
+        .filter-item label { margin-bottom: 2px; color: #ccc; }
+        .filter-item input[type=range] { width: 100%; cursor: pointer; }
+        .filter-item input[type=checkbox] { transform: scale(1.2); align-self: flex-start; cursor: pointer; }
+        .reset-filter-btn { background: #95a5a6; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 0.85em; margin-top: 5px; width: 100%; transition: background 0.2s; }
+
+        .toolbar {
+            display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+            gap: 15px; background: #f8f9fa; padding: 8px; border-radius: 8px; border: 1px solid #e9ecef;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 5px;
+        }
+        .playback-group { display: flex; gap: 10px; align-items: center; }
+        .offset-group { display: flex; align-items: center; gap: 6px; padding-left: 15px; border-left: 2px solid #e9ecef; }
+        @media (max-width: 850px) {
+            .offset-group { border-left: none; border-top: 2px solid #e9ecef; padding-left: 0; padding-top: 8px; width: 100%; justify-content: center; }
+        }
+        .action-btn {
+            padding: 8px 12px; font-size: 0.95em; font-weight: bold; border-radius: 6px; cursor: pointer;
+            border: none; transition: background 0.2s, transform 0.1s; color: white;
+            display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 90px;
+        }
+        .action-btn:active { transform: scale(0.98); }
+        #playBtn { background: #28a745; min-width: 100px; } #playBtn:hover { background: #218838; }
+        #stopBtn { background: #dc3545; min-width: 80px; } #stopBtn:hover { background: #c82333; }
+        #addMarkerBtn { background: #f1c40f; color: #333; } #addMarkerBtn:hover { background: #f39c12; }
+        #toggleOverlayBtn { background: #34495e; } #toggleOverlayBtn:hover { background: #2c3e50; }
+        #toggleGazeBtn { background: #8e44ad; } #toggleGazeBtn:hover { background: #9b59b6; } /* 視線ボタン */
+
+        .offset-label { font-weight: bold; color: #555; font-size: 0.9em; display: flex; align-items: center; gap: 4px; }
+        .btn-group { display: flex; gap: 2px; }
+        .btn-offset {
+            background: #fff; border: 1px solid #ced6e0; cursor: pointer; color: #444;
+            padding: 4px 8px; border-radius: 4px; font-size: 0.85em; transition: background 0.2s; font-family: monospace;
+        }
+        .btn-offset:hover { background: #e2e6ea; border-color: #adb5bd; }
+        input#offsetInput { width: 70px; text-align: center; font-size: 1.0em; padding: 4px; margin: 0 4px; border: 2px solid #0984e3; border-radius: 4px; font-weight: bold; color: #0984e3; }
+
+        .values-section { margin-top: 5px; }
+        .values-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 0 2px; }
+        .values-title { font-weight: bold; color: #444; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
+        .threshold-control {
+            display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: #555;
+            background: #fff; padding: 2px 8px; border-radius: 12px; border: 1px solid #ddd;
+        }
+        .threshold-control input { width: 50px; padding: 2px; text-align: center; border: 1px solid #ccc; border-radius: 3px; font-weight: bold; color: #e74c3c; }
+        
+        .current-values { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        
+        .value-box { 
+            background: #fff; color: #333; padding: 4px 6px; border-radius: 6px; text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-top: 3px solid #ccc; 
+            transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: center; height: 50px; 
+        }
+        .value-box .label { display: block; font-size: 0.7em; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+        .value-box strong { display: block; font-size: 1.4em; font-family: 'Courier New', monospace; font-weight: bold; color: #2c3e50; line-height: 1; }
+        .value-box.alert { background: #e74c3c; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(231, 76, 60, 0.4); border-top-color: #c0392b !important; }
+        .value-box.alert .label, .value-box.alert strong { color: white !important; }
+
+        .chart-container { position: relative; height: 300px; min-height: 150px; width: 100%; cursor: crosshair; background: #fff; border-radius: 4px; margin-top: 10px; }
+        
+        .marker-section { margin-top: 5px; padding: 15px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; }
+        .marker-section h3 { margin: 0 0 10px 0; font-size: 0.95em; color: #856404; display: flex; align-items: center; gap: 5px; border-bottom: 1px dashed #e6dbb9; padding-bottom: 5px; }
+        .marker-list { display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
+        .marker-item {
+            background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 5px 10px;
+            font-size: 0.9em; display: flex; align-items: center; gap: 10px; cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .marker-item:hover { background: #fff9e6; border-color: #f39c12; }
+        .marker-time { font-weight: bold; font-family: monospace; color: #333; min-width: 65px; }
+        .marker-input { flex-grow: 1; border: 1px solid #eee; border-radius: 4px; padding: 4px 8px; font-size: 0.9em; color: #555; }
+        .marker-input:focus { border-color: #f1c40f; background: #fffff8; }
+        .marker-delete {
+            color: #dc3545; font-weight: bold; cursor: pointer; border-radius: 4px;
+            padding: 2px 8px; display: flex; align-items: center; justify-content: center;
+            background: #fff0f0; border: 1px solid #f5c6cb;
+        }
+        .marker-delete:hover { background: #dc3545; color: white; border-color: #dc3545; }
+
+        .video-comment-section { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #d1c6a3; }
+        .video-comment-label { display: block; font-weight: bold; color: #856404; margin-bottom: 5px; font-size: 0.9em; }
+        .video-comment-area {
+            width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; 
+            border: 1px solid #dee2e6; font-size: 0.95em; resize: vertical; min-height: 60px;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧠 Gaze Data Viewer</h2>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>1. 動画ファイル (.mp4)</label>
+            <input type="file" id="videoInput" accept="video/*">
+            <div id="videoMeta" class="metadata-box">未選択</div>
+        </div>
+        <div class="control-group">
+            <label>2. CSVファイル (.csv)</label>
+            <input type="file" id="csvInput" accept=".csv">
+            <div id="csvMeta" class="metadata-box">未選択</div>
+        </div>
+        <div class="control-group">
+            <label>3. 編集者 (Editor)</label>
+            <input type="text" id="editorInput" placeholder="編集者の名前">
+        </div>
+        <div></div> 
+    </div>
+
+    <div class="media-container">
+        <div class="video-wrapper" id="videoWrapper">
+            <video id="mainVideo" controls playsinline></video>
+            
+            <!-- ★ 視線描画用 Canvas -->
+            <canvas id="gazeCanvas" class="gaze-canvas"></canvas>
+
+            <div id="videoOverlay" class="video-overlay"></div>
+            <div class="filter-overlay-container">
+                <button id="filterToggleBtn" class="filter-icon-btn" title="映像フィルター設定">🎨</button>
+                <div id="filterPanel" class="filter-panel" style="display: none;">
+                    <div class="filter-header">映像フィルター</div>
+                    <div class="filter-item"><label>明るさ</label><input type="range" id="f-brightness" min="50" max="150" value="100"></div>
+                    <div class="filter-item"><label>コントラスト</label><input type="range" id="f-contrast" min="50" max="150" value="100"></div>
+                    <div class="filter-item"><label>彩度</label><input type="range" id="f-saturate" min="0" max="200" value="100"></div>
+                    <div class="filter-item"><label><input type="checkbox" id="f-grayscale"> モノクロ</label></div>
+                    <div class="filter-item"><label><input type="checkbox" id="f-invert"> 反転</label></div>
+                    <button class="reset-filter-btn" onclick="resetFilters()">リセット</button>
+                </div>
+            </div>
+        </div>
+        <div class="resizer" id="videoResizer" title="ドラッグして動画エリアの高さを変更"></div>
+
+        <div class="toolbar">
+            <div class="playback-group">
+                <button id="playBtn" class="action-btn">▶ 再生</button>
+                <button id="stopBtn" class="action-btn">■ 停止</button>
+                <button id="addMarkerBtn" class="action-btn">🚩 マーカー</button>
+                <button id="toggleOverlayBtn" class="action-btn">👁 数値</button>
+                <button id="toggleGazeBtn" class="action-btn">👀 視線</button>
+            </div>
+            <div class="offset-group">
+                <div class="offset-label" title="動画に対するデータの開始時間調整">⏱️ Offset:</div>
+                <div class="btn-group">
+                    <button class="btn-offset" onclick="adjustOffset(-1.0)">-1.0</button>
+                    <button class="btn-offset" onclick="adjustOffset(-0.1)">-0.1</button>
+                </div>
+                <input type="number" id="offsetInput" value="0.00" step="0.01" onchange="applyOffsetFromInput()">
+                <div class="btn-group">
+                    <button class="btn-offset" onclick="adjustOffset(0.1)">+0.1</button>
+                    <button class="btn-offset" onclick="adjustOffset(1.0)">+1.0</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="values-section">
+            <div class="values-header">
+                <div class="values-title">📊 Current Gaze (X, Y)</div>
+                <div class="threshold-control">
+                    <label for="globalThresholdInput">Alert X/Y > </label>
+                    <input type="number" id="globalThresholdInput" value="1900" step="50">
+                </div>
+            </div>
+            <div class="current-values" id="valuesDisplay"></div>
+        </div>
+
+        <div class="chart-container" id="chartWrapper">
+            <canvas id="myChart"></canvas>
+        </div>
+        <div class="resizer" id="chartResizer" title="ドラッグしてグラフエリアの高さを変更"></div>
+
+        <div class="marker-section">
+            <h3>🚩 マーカーリスト (クリックでジャンプ)</h3>
+            <ul id="markerList" class="marker-list">
+                <li style="color:#888; font-size:0.9em; padding:5px;">マーカーはまだありません</li>
+            </ul>
+            <div class="video-comment-section">
+                <label class="video-comment-label">📝 動画全体のコメント / 考察</label>
+                <textarea id="videoCommentInput" class="video-comment-area" rows="3" placeholder="ここに動画全体に関するメモや考察を記述してください..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- ダウンロードボタン -->
+    <div class="download-area">
+        <button id="downloadBtn" class="download-btn" disabled onclick="downloadCSV()">
+            💾 CSVデータを保存
+        </button>
+    </div>
+</div>
+
+<script>
+    const targetColumns = ['Gaze_X', 'Gaze_Y']; 
+    const colorPalette = ['#3498db', '#e74c3c']; 
+    
+    const videoInput = document.getElementById('videoInput');
+    const csvInput = document.getElementById('csvInput');
+    const editorInput = document.getElementById('editorInput');
+
+    const video = document.getElementById('mainVideo');
+    const videoWrapper = document.getElementById('videoWrapper');
+    const chartWrapper = document.getElementById('chartWrapper');
+    const gazeCanvas = document.getElementById('gazeCanvas'); // Canvas
+    const gazeCtx = gazeCanvas.getContext('2d');
+
+    const playBtn = document.getElementById('playBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const addMarkerBtn = document.getElementById('addMarkerBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
+    const toggleGazeBtn = document.getElementById('toggleGazeBtn');
+    
+    const filterToggleBtn = document.getElementById('filterToggleBtn');
+    const filterPanel = document.getElementById('filterPanel');
+    const f_brightness = document.getElementById('f-brightness');
+    const f_contrast = document.getElementById('f-contrast');
+    const f_saturate = document.getElementById('f-saturate');
+    const f_grayscale = document.getElementById('f-grayscale');
+    const f_invert = document.getElementById('f-invert');
+
+    const videoMeta = document.getElementById('videoMeta');
+    const csvMeta = document.getElementById('csvMeta');
+    const valuesDisplay = document.getElementById('valuesDisplay');
+    const videoOverlay = document.getElementById('videoOverlay'); 
+    const canvas = document.getElementById('myChart');
+    const offsetInput = document.getElementById('offsetInput');
+    const markerListEl = document.getElementById('markerList');
+    const globalThresholdInput = document.getElementById('globalThresholdInput');
+    const videoCommentInput = document.getElementById('videoCommentInput');
+    
+    const videoResizer = document.getElementById('videoResizer');
+    const chartResizer = document.getElementById('chartResizer');
+
+    let chartInstance = null;
+    let rawCsvData = [];
+    let displayCsvData = []; 
+    let labels = [];
+    let isDragging = false; 
+    let isDraggingMarker = false; 
+    let draggedMarkerIndex = -1; 
+
+    let globalThreshold = 1900; 
+    let currentOffset = 0.0;
+    
+    // メタデータ
+    let fileHeaderLines = []; 
+    let originalFileBaseName = "gaze_data";
+    let currentFileSequence = 0;
+    // 画面解像度(CSVより)
+    let metaScreenX = 1920; 
+    let metaScreenY = 1200;
+
+    let markers = []; 
+    let currentVideoComment = ""; 
+    let hoveredListMarkerIndex = -1; 
+    let hoveredGraphMarkerIndex = -1; 
+
+    // 視線表示フラグ
+    let isGazeVisible = true;
+
+    // --- リサイズ機能 ---
+    function makeResizable(element, handle) {
+        let startY, startHeight;
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startY = e.clientY;
+            startHeight = parseInt(document.defaultView.getComputedStyle(element).height, 10);
+            document.documentElement.addEventListener('mousemove', doDrag, false);
+            document.documentElement.addEventListener('mouseup', stopDrag, false);
+        });
+        function doDrag(e) { element.style.height = (startHeight + e.clientY - startY) + 'px'; }
+        function stopDrag() {
+            document.documentElement.removeEventListener('mousemove', doDrag, false);
+            document.documentElement.removeEventListener('mouseup', stopDrag, false);
+            if (chartInstance && element === chartWrapper) { chartInstance.resize(); }
+            // Canvasサイズ調整
+            resizeGazeCanvas();
+        }
+    }
+    makeResizable(videoWrapper, videoResizer);
+    makeResizable(chartWrapper, chartResizer);
+
+    // Canvasサイズ調整
+    function resizeGazeCanvas() {
+        if(videoWrapper) {
+            gazeCanvas.width = videoWrapper.clientWidth;
+            gazeCanvas.height = videoWrapper.clientHeight;
+        }
+    }
+    window.addEventListener('resize', resizeGazeCanvas);
+    new ResizeObserver(resizeGazeCanvas).observe(videoWrapper);
+
+    // --- UIイベント ---
+    globalThresholdInput.addEventListener('change', (e) => {
+        globalThreshold = Number(e.target.value);
+        if (video.paused && chartInstance && displayCsvData.length > 0) updateValuesForTime(video.currentTime);
+    });
+    videoCommentInput.addEventListener('input', (e) => { currentVideoComment = e.target.value; });
+
+    filterToggleBtn.addEventListener('click', () => {
+        if(filterPanel.style.display === 'none') { filterPanel.style.display = 'flex'; filterToggleBtn.classList.add('active'); } 
+        else { filterPanel.style.display = 'none'; filterToggleBtn.classList.remove('active'); }
+    });
+    function updateVideoFilters() {
+        video.style.filter = `brightness(${f_brightness.value}%) contrast(${f_contrast.value}%) saturate(${f_saturate.value}%) grayscale(${f_grayscale.checked ? 1 : 0}) invert(${f_invert.checked ? 1 : 0})`;
+    }
+    [f_brightness, f_contrast, f_saturate, f_grayscale, f_invert].forEach(el => { el.addEventListener('input', updateVideoFilters); el.addEventListener('change', updateVideoFilters); });
+    window.resetFilters = function() { f_brightness.value=100; f_contrast.value=100; f_saturate.value=100; f_grayscale.checked=false; f_invert.checked=false; updateVideoFilters(); };
+
+    // --- オーバーレイ移動 ---
+    function makeOverlayDraggable(el) {
+        let isDraggingOverlay = false; let startX, startY, initialLeft, initialTop;
+        el.addEventListener('mousedown', (e) => {
+            isDraggingOverlay = true; startX = e.clientX; startY = e.clientY;
+            const rect = el.getBoundingClientRect(); const parentRect = videoWrapper.getBoundingClientRect();
+            initialLeft = rect.left - parentRect.left; initialTop = rect.top - parentRect.top;
+            el.style.right = 'auto'; el.style.left = initialLeft + 'px'; el.style.top = initialTop + 'px';
+            el.style.cursor = 'grabbing'; e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isDraggingOverlay) return;
+            const dx = e.clientX - startX; const dy = e.clientY - startY;
+            let newLeft = Math.max(0, Math.min(initialLeft + dx, videoWrapper.getBoundingClientRect().width - el.getBoundingClientRect().width));
+            let newTop = Math.max(0, Math.min(initialTop + dy, videoWrapper.getBoundingClientRect().height - el.getBoundingClientRect().height));
+            el.style.left = newLeft + 'px'; el.style.top = newTop + 'px';
+        });
+        document.addEventListener('mouseup', () => { if (isDraggingOverlay) { isDraggingOverlay = false; el.style.cursor = 'move'; } });
+    }
+    makeOverlayDraggable(videoOverlay);
+
+    // --- 再生制御 ---
+    playBtn.addEventListener('click', () => { if (video.paused) { video.play(); } else { video.pause(); } });
+    stopBtn.addEventListener('click', () => { video.pause(); video.currentTime = 0; if (chartInstance && !video.seeking) chartInstance.draw(); });
+    video.addEventListener('play', () => { playBtn.textContent = '⏸ 一時停止'; });
+    video.addEventListener('pause', () => { playBtn.textContent = '▶ 再生'; });
+    video.addEventListener('ended', () => { playBtn.textContent = '▶ 再生'; });
+    toggleOverlayBtn.addEventListener('click', () => {
+        if (videoOverlay.style.display === 'none') { videoOverlay.style.display = 'flex'; toggleOverlayBtn.style.background = '#34495e'; toggleOverlayBtn.style.color = 'white'; } 
+        else { videoOverlay.style.display = 'none'; toggleOverlayBtn.style.background = '#ccc'; toggleOverlayBtn.style.color = '#333'; }
+    });
+    toggleGazeBtn.addEventListener('click', () => {
+        isGazeVisible = !isGazeVisible;
+        if(isGazeVisible) { 
+            toggleGazeBtn.style.background = '#8e44ad'; toggleGazeBtn.style.color = 'white'; 
+            if(video.paused) updateValuesForTime(video.currentTime); // 再描画
+        } else { 
+            toggleGazeBtn.style.background = '#ccc'; toggleGazeBtn.style.color = '#333'; 
+            gazeCtx.clearRect(0, 0, gazeCanvas.width, gazeCanvas.height);
+        }
+    });
+
+    // --- マーカー管理 ---
+    addMarkerBtn.addEventListener('click', () => {
+        const baseTime = video.currentTime - currentOffset; markers.push({ time: baseTime, label: "" }); markers.sort((a, b) => a.time - b.time);
+        renderMarkerList(); if(chartInstance) chartInstance.draw();
+    });
+    function deleteMarker(index) { markers.splice(index, 1); hoveredListMarkerIndex = -1; renderMarkerList(); if(chartInstance) chartInstance.draw(); }
+    function renderMarkerList() {
+        markerListEl.innerHTML = '';
+        if (markers.length === 0) { markerListEl.innerHTML = '<li style="color:#888; font-size:0.9em; padding:5px;">マーカーはまだありません</li>'; return; }
+        markers.forEach((marker, index) => {
+            const li = document.createElement('li'); li.className = 'marker-item';
+            const displayTime = marker.time + currentOffset;
+            li.innerHTML = `<span class="marker-time">⏱ ${displayTime.toFixed(2)}s</span>`;
+            const input = document.createElement('input'); input.type = "text"; input.className = "marker-input"; input.placeholder = "コメント..."; input.value = marker.label || "";
+            input.onclick = (e) => e.stopPropagation(); input.oninput = (e) => { marker.label = e.target.value; };
+            li.appendChild(input);
+            const delBtn = document.createElement('span'); delBtn.className = 'marker-delete'; delBtn.textContent = '削除';
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteMarker(index); };
+            li.appendChild(delBtn);
+            li.onclick = () => { video.currentTime = displayTime; if(chartInstance) chartInstance.draw(); };
+            li.onmouseenter = () => { hoveredListMarkerIndex = index; if(chartInstance) chartInstance.draw(); };
+            li.onmouseleave = () => { hoveredListMarkerIndex = -1; if(chartInstance) chartInstance.draw(); };
+            markerListEl.appendChild(li);
+        });
+    }
+
+    // --- UI生成 ---
+    function createValueBoxes(columns) {
+        valuesDisplay.innerHTML = ''; videoOverlay.innerHTML = ''; 
+        columns.forEach((key, index) => {
+            const color = colorPalette[index % colorPalette.length];
+            const div = document.createElement('div'); div.className = 'value-box'; div.style.borderTopColor = color; div.dataset.baseColor = color; 
+            div.innerHTML = `<span class="label" style="color: ${color};">${key}</span><strong id="val-${index}">-</strong>`;
+            valuesDisplay.appendChild(div);
+            const row = document.createElement('div'); row.className = 'overlay-row'; row.dataset.baseColor = color; row.style.color = color; 
+            row.innerHTML = `<span>${key}</span><span id="ov-val-${index}" class="overlay-value">-</span>`;
+            videoOverlay.appendChild(row);
+        });
+    }
+    createValueBoxes(targetColumns);
+    initEmptyChart(); 
+    function initEmptyChart() {
+        const emptyDatasets = targetColumns.map((key, index) => ({
+            label: key, data: [], borderColor: colorPalette[index], backgroundColor: colorPalette[index], borderWidth: 2, pointRadius: 0, tension: 0, fill: false
+        }));
+        drawChart([], emptyDatasets);
+    }
+
+    // --- オフセット ---
+    window.adjustOffset = function(delta) { currentOffset = parseFloat((currentOffset + delta).toFixed(2)); offsetInput.value = currentOffset.toFixed(2); updateChartDataWithOffset(); renderMarkerList(); };
+    window.applyOffsetFromInput = function() { const val = parseFloat(offsetInput.value); if (!isNaN(val)) { currentOffset = val; updateChartDataWithOffset(); renderMarkerList(); } };
+    function updateChartDataWithOffset() {
+        if (rawCsvData.length === 0) return;
+        displayCsvData = rawCsvData.map(row => ({ time: row.time + currentOffset, values: row.values }));
+        labels = displayCsvData.map(row => row.time);
+        if (chartInstance) {
+            chartInstance.data.labels = labels;
+            chartInstance.data.datasets.forEach((dataset, i) => { dataset.data = displayCsvData.map(row => row.values[i]); });
+            chartInstance.update('none');
+            updateValuesForTime(video.currentTime);
+        }
+    }
+
+    // --- CSV保存 ---
+    function formatOutputTimestamp(ms) {
+        const d = new Date(ms); const pad = (n) => String(n).padStart(2, '0'); const pad3 = (n) => String(n).padStart(3, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad3(d.getMilliseconds())}`;
+    }
+    
+    function getNowFormatted() {
+        const d = new Date(); const pad = (n) => String(n).padStart(2, '0');
+        return { 
+            iso: d.toLocaleString('ja-JP'), 
+            fileSuffix: `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`
+        };
+    }
+    window.downloadCSV = function() {
+        if(rawCsvData.length === 0) { alert("データがありません"); return; }
+        
+        currentFileSequence++;
+        const seqStr = String(currentFileSequence).padStart(3, '0');
+        const now = getNowFormatted();
+        const newFileName = `${originalFileBaseName}_${now.fileSuffix}_${seqStr}.csv`;
+
+        const metaData = { editDate: now.iso, offset: currentOffset, markers: markers, editor: editorInput.value.trim(), videoComment: currentVideoComment };
+        let csvContent = `# APP_DATA=${JSON.stringify(metaData)}\n`;
+        const hasNoise = (rawCsvData[0].noise !== undefined); const hasComment = (rawCsvData[0].comment !== undefined);
+        csvContent += "Timestamp," + targetColumns.join(",") + (hasNoise ? ",Noise" : "") + (hasComment ? ",Comment" : "") + "\n";
+        rawCsvData.forEach(row => {
+            const originalMs = globalStartTime + (row.time * 1000); const tsStr = formatOutputTimestamp(originalMs); const valStr = row.values.join(",");
+            const noiseStr = hasNoise ? "," + row.noise : ""; const commentStr = hasComment ? "," + (row.comment || "") : ""; 
+            csvContent += `${tsStr},${valStr}${noiseStr}${commentStr}\n`;
+        });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
+        const link = document.createElement("a"); link.setAttribute("href", url); link.setAttribute("download", newFileName);
+        link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    };
+
+    function formatDate(date) {
+        if(!date || isNaN(date.getTime())) return '-';
+        return date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    
+    videoInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) { video.src = URL.createObjectURL(file); const fileDate = new Date(file.lastModified); videoMeta.innerHTML = `<span class="meta-item"><span class="meta-icon">📅</span>更新日時: ${formatDate(fileDate)}</span> 読込中...`; } 
+        else { videoMeta.textContent = '未選択'; }
+    });
+    video.addEventListener('loadedmetadata', () => {
+        const currentHTML = videoMeta.innerHTML.split('読込中...')[0]; 
+        const duration = video.duration; const min = Math.floor(duration / 60); const sec = Math.floor(duration % 60); const resolutionStr = `${video.videoWidth} x ${video.videoHeight}`;
+        videoMeta.innerHTML = `${currentHTML}<span class="meta-item"><span class="meta-icon">⏱</span>長さ: ${min}分${sec}秒</span><span class="meta-item"><span class="meta-icon">📐</span>解像度: ${resolutionStr}</span>`;
+        resizeGazeCanvas();
+    });
+    
+    csvInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) { csvMeta.textContent = '未選択'; return; }
+        
+        const name = file.name;
+        const lastDot = name.lastIndexOf('.');
+        let baseName = (lastDot !== -1) ? name.substring(0, lastDot) : name;
+        
+        const patternNewWithSeq = /^(.*)_(\d{12,14})_(\d{3})$/;
+        const patternNewNoSeq = /^(.*)_(\d{12,14})$/;
+        const patternOldWithSeq = /^(.*)_(\d{8})_(\d{4,6})_(\d{3})$/;
+        const patternOldNoSeq = /^(.*)_(\d{8})_(\d{4,6})$/;
+        
+        let sequence = 0;
+        let match;
+
+        if ((match = baseName.match(patternNewWithSeq))) { baseName = match[1]; sequence = parseInt(match[3], 10); } 
+        else if ((match = baseName.match(patternNewNoSeq))) { baseName = match[1]; sequence = 0; } 
+        else if ((match = baseName.match(patternOldWithSeq))) { baseName = match[1]; sequence = parseInt(match[4], 10); } 
+        else if ((match = baseName.match(patternOldNoSeq))) { baseName = match[1]; sequence = 0; }
+
+        originalFileBaseName = baseName;
+        currentFileSequence = sequence;
+
+        editorInput.value = ""; currentVideoComment = ""; videoCommentInput.value = "";
+        csvMeta.textContent = '読込中...';
+        
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const text = evt.target.result; const lines = text.split(/\r\n|\n/);
+            fileHeaderLines = []; rawCsvData = []; lastLoadedMetadata = null; currentOffset = 0.0; markers = []; offsetInput.value = "0.00";
+
+            if(lines.length < 7) { alert("CSVフォーマットエラー: 行数が不足しています"); return; }
+            for(let i=0; i<6; i++) { fileHeaderLines.push(lines[i]); }
+
+            const line2 = lines[1].split(','); const metaDate = line2[0] || "-"; const metaScore = line2[2] || "-";
+            const line6 = lines[5].split(',');
+            metaScreenX = parseInt(line6[0]) || 1920; 
+            metaScreenY = parseInt(line6[1]) || 1200;
+            const metaRes = (line6[0] && line6[1]) ? `${line6[0]}x${line6[1]}` : "-";
+            const metaCount = line6[2] || "-";
+
+            let appDataLine = null;
+            for(let i=lines.length-1; i>=6; i--) { if(lines[i].startsWith('# APP_DATA=')) { appDataLine = lines[i]; break; } }
+
+            if (appDataLine) {
+                try {
+                    const jsonStr = appDataLine.replace('# APP_DATA=', ''); lastLoadedMetadata = JSON.parse(jsonStr);
+                    if (lastLoadedMetadata.offset !== undefined) { currentOffset = lastLoadedMetadata.offset; offsetInput.value = currentOffset.toFixed(2); }
+                    if (lastLoadedMetadata.markers) { markers = lastLoadedMetadata.markers; }
+                    if (lastLoadedMetadata.editor) { editorInput.value = lastLoadedMetadata.editor; }
+                    if (lastLoadedMetadata.videoComment) { currentVideoComment = lastLoadedMetadata.videoComment; videoCommentInput.value = currentVideoComment; }
+                } catch(e) { console.error("APP_DATA parse error", e); }
+            }
+
+            const dataString = lines.slice(6).join("\n");
+            Papa.parse(dataString, {
+                header: true, comments: "# ", dynamicTyping: true, skipEmptyLines: true,
+                complete: function(results) { processDataNew(results.data, metaDate, metaScore, metaRes, metaCount); }
+            });
+        };
+        reader.readAsText(file);
+    });
+    
+    function processDataNew(data, date, score, res, count) {
+        let tempData = [];
+        data.forEach(row => {
+            const t = row['#GameTime']; const x = row['Gaze_X']; const y = row['Gaze_Y'];
+            if (typeof t === 'number' && typeof x === 'number' && typeof y === 'number') { tempData.push({ time: t, values: [x, y] }); }
+        });
+
+        if (tempData.length === 0) { alert("有効な視線データが読み取れませんでした。"); csvMeta.textContent = 'エラー: データなし'; downloadBtn.disabled = true; return; }
+
+        let metaHTML = `<span class="meta-item"><span class="meta-icon">📅</span>Play: ${date}</span><span class="meta-item"><span class="meta-icon">🏆</span>Score: ${score}</span><span class="meta-item"><span class="meta-icon">📐</span>Res: ${res}</span>`;
+        if (lastLoadedMetadata) {
+            if (lastLoadedMetadata.editDate) { metaHTML += `<br><span class="meta-item"><span class="meta-icon">📝</span>Edited: <span class="meta-highlight">${lastLoadedMetadata.editDate}</span></span>`; }
+            if (lastLoadedMetadata.editor) { metaHTML += `<span class="meta-item"><span class="meta-icon">👤</span>Editor: <span class="meta-highlight">${lastLoadedMetadata.editor}</span></span>`; }
+        }
+        csvMeta.innerHTML = metaHTML; downloadBtn.disabled = false;
+        rawCsvData = tempData;
+        createValueBoxes(targetColumns); renderMarkerList(); updateChartDataWithOffset();
+        
+        const datasets = [
+            { label: 'Gaze_X', data: [], borderColor: colorPalette[0], backgroundColor: colorPalette[0], borderWidth: 1, pointRadius: 0, tension: 0, fill: false },
+            { label: 'Gaze_Y', data: [], borderColor: colorPalette[1], backgroundColor: colorPalette[1], borderWidth: 1, pointRadius: 0, tension: 0, fill: false }
+        ];
+        drawChart([], datasets); updateChartDataWithOffset();
+    }
+
+    function drawChart(initialLabels, initialDatasets) {
+        if (chartInstance) chartInstance.destroy();
+        const ctx = canvas.getContext('2d');
+        const markerPlugin = {
+            id: 'markerLine',
+            beforeDatasetsDraw: (chart) => {
+                if (markers.length === 0) return;
+                const ctx = chart.ctx; const chartArea = chart.chartArea; const xAxis = chart.scales.x;
+                markers.forEach((marker, index) => {
+                    const displayTime = marker.time + currentOffset; const x = xAxis.getPixelForValue(displayTime);
+                    if (x < chartArea.left || x > chartArea.right) return;
+                    const isHovered = (index === hoveredListMarkerIndex) || (index === hoveredGraphMarkerIndex);
+                    const topY = chartArea.top - 20; 
+                    ctx.save(); ctx.beginPath(); ctx.lineWidth = isHovered ? 4 : 2; ctx.strokeStyle = isHovered ? '#e67e22' : '#f1c40f';
+                    ctx.moveTo(x, topY); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+                    ctx.fillStyle = isHovered ? '#e67e22' : '#f1c40f'; ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x + (isHovered ? 12 : 8), topY + (isHovered ? 8 : 5)); ctx.lineTo(x, topY + (isHovered ? 16 : 10)); ctx.fill();
+                    if (isHovered) {
+                        const text = displayTime.toFixed(2) + "s"; ctx.font = "bold 12px sans-serif";
+                        const textWidth = ctx.measureText(text).width; const boxPadding = 4; const boxX = x + 10; const boxY = chartArea.top + 20;
+                        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(boxX, boxY - 12, textWidth + boxPadding * 2, 20);
+                        ctx.fillStyle = "#fff"; ctx.fillText(text, boxX + boxPadding, boxY + 2);
+                        if(marker.label) {
+                             const labelWidth = ctx.measureText(marker.label).width;
+                             ctx.fillStyle = "rgba(52, 152, 219, 0.9)"; ctx.fillRect(boxX, boxY + 12, labelWidth + boxPadding * 2, 20);
+                             ctx.fillStyle = "#fff"; ctx.fillText(marker.label, boxX + boxPadding, boxY + 26);
+                        }
+                    }
+                    ctx.restore();
+                });
+            }
+        };
+        const verticalLinePlugin = {
+            id: 'verticalLine',
+            afterDraw: (chart) => {
+                const currentTime = video.duration ? video.currentTime : 0;
+                let x; try { x = chart.scales.x.getPixelForValue(currentTime); } catch(e) { return; }
+                const { top, bottom } = chart.scales.y;
+                const ctx = chart.ctx; ctx.save(); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.lineWidth = 2; ctx.strokeStyle = '#e74c3c'; ctx.stroke();
+                const timeString = currentTime.toFixed(2) + ' s'; ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(timeString, x, top - 5); 
+                ctx.restore();
+                updateValuesForTime(currentTime);
+            }
+        };
+        chartInstance = new Chart(ctx, {
+            type: 'line', data: { labels: initialLabels, datasets: initialDatasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                interaction: { mode: 'none' }, events: [], layout: { padding: { top: 40 } }, 
+                scales: { x: { type: 'linear', display: true, title: { display: true, text: 'Time (sec)' } }, y: { grid: { color: '#ecf0f1' } } },
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip: { enabled: false } }
+            },
+            plugins: [markerPlugin, verticalLinePlugin] 
+        });
+        setupDraggableChart();
+    }
+    function setupDraggableChart() {
+        canvas.addEventListener('mousedown', (e) => {
+            if (hoveredGraphMarkerIndex !== -1) { isDraggingMarker = true; draggedMarkerIndex = hoveredGraphMarkerIndex; } 
+            else { isDragging = true; seekVideoByMouse(e); }
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDraggingMarker) { moveMarkerByMouse(e); } 
+            else if (isDragging) { seekVideoByMouse(e); } 
+            else { checkMarkerHover(e); }
+        });
+        window.addEventListener('mouseup', () => {
+            if (isDraggingMarker) { markers.sort((a, b) => a.time - b.time); renderMarkerList(); isDraggingMarker = false; draggedMarkerIndex = -1; chartInstance.draw(); }
+            isDragging = false; 
+        });
+    }
+    function checkMarkerHover(e) {
+        if (!chartInstance || markers.length === 0) return;
+        const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const scaleX = chartInstance.scales.x; const thresholdPx = 10;
+        let foundIndex = -1;
+        for (let i = 0; i < markers.length; i++) {
+            const markerPixel = scaleX.getPixelForValue(markers[i].time + currentOffset);
+            if (Math.abs(markerPixel - mouseX) < thresholdPx) { foundIndex = i; break; }
+        }
+        if (foundIndex !== -1) { canvas.style.cursor = 'ew-resize'; } else { canvas.style.cursor = 'crosshair'; }
+        if (foundIndex !== hoveredGraphMarkerIndex) { hoveredGraphMarkerIndex = foundIndex; chartInstance.draw(); }
+    }
+    function seekVideoByMouse(e) {
+        if (!chartInstance || !video.duration) return;
+        const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const scaleX = chartInstance.scales.x;
+        let time = scaleX.getValueForPixel(mouseX);
+        time = Math.max(0, Math.min(video.duration, Math.max(scaleX.min, Math.min(scaleX.max, time))));
+        video.currentTime = time;
+        chartInstance.draw(); 
+    }
+    function moveMarkerByMouse(e) {
+        if (!chartInstance || draggedMarkerIndex === -1) return;
+        const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const scaleX = chartInstance.scales.x;
+        let displayTime = scaleX.getValueForPixel(mouseX);
+        let newMarkerTime = displayTime - currentOffset;
+        newMarkerTime = Math.max(0, Math.min(video.duration, newMarkerTime));
+        markers[draggedMarkerIndex].time = newMarkerTime;
+        chartInstance.draw();
+    }
+    
+    // 視線描画 (Canvas)
+    function drawGaze(currentIndex) {
+        gazeCtx.clearRect(0, 0, gazeCanvas.width, gazeCanvas.height);
+        if(!isGazeVisible || currentIndex === 0) return;
+
+        // 過去Nフレームの軌跡を描画
+        const trailLength = 30; // 約1秒分
+        const startIndex = Math.max(0, currentIndex - trailLength);
+        const endIndex = currentIndex;
+
+        // 画面比率計算
+        const scaleX = gazeCanvas.width / metaScreenX;
+        const scaleY = gazeCanvas.height / metaScreenY;
+
+        gazeCtx.beginPath();
+        gazeCtx.lineWidth = 3;
+        gazeCtx.strokeStyle = 'rgba(52, 152, 219, 0.7)'; // 青っぽい軌跡
+        gazeCtx.lineCap = 'round';
+        gazeCtx.lineJoin = 'round';
+
+        let firstPoint = true;
+        for(let i=startIndex; i<=endIndex; i++) {
+            const point = displayCsvData[i];
+            if(!point) continue;
+            // CSV: [x, y]
+            const gx = point.values[0] * scaleX;
+            const gy = point.values[1] * scaleY;
+
+            if(firstPoint) { gazeCtx.moveTo(gx, gy); firstPoint = false; }
+            else { gazeCtx.lineTo(gx, gy); }
+        }
+        gazeCtx.stroke();
+
+        // 現在地点の点描画
+        const currentPoint = displayCsvData[endIndex];
+        if(currentPoint) {
+            const cx = currentPoint.values[0] * scaleX;
+            const cy = currentPoint.values[1] * scaleY;
+            
+            gazeCtx.beginPath();
+            gazeCtx.arc(cx, cy, 8, 0, 2 * Math.PI);
+            gazeCtx.fillStyle = 'rgba(231, 76, 60, 0.9)'; // 赤丸
+            gazeCtx.fill();
+            gazeCtx.strokeStyle = 'white';
+            gazeCtx.lineWidth = 2;
+            gazeCtx.stroke();
+        }
+    }
+
+    function updateValuesForTime(currentTime) {
+        if(displayCsvData.length === 0) return;
+        let closestIndex = 0; let minDiff = Infinity;
+        // 近似検索
+        for(let i=0; i<displayCsvData.length; i++) {
+            const diff = Math.abs(displayCsvData[i].time - currentTime);
+            if(diff < minDiff) { minDiff = diff; closestIndex = i; } else if (diff > 2.0 && i > 50) { break; }
+        }
+        
+        // ★ 視線描画更新
+        drawGaze(closestIndex);
+
+        const row = displayCsvData[closestIndex]; if (!row) return;
+        row.values.forEach((val, i) => {
+            const valEl = document.getElementById(`val-${i}`); const boxEl = valEl ? valEl.closest('.value-box') : null;
+            if(valEl && boxEl) {
+                const currentVal = val !== null ? val : 0; valEl.textContent = val !== null ? val.toFixed(1) : '-';
+                if (currentVal >= globalThreshold) { boxEl.classList.add('alert'); boxEl.style.backgroundColor = boxEl.dataset.baseColor; boxEl.style.borderColor = boxEl.dataset.baseColor; } 
+                else { boxEl.classList.remove('alert'); boxEl.style.backgroundColor = '#fff'; boxEl.style.borderTopColor = boxEl.dataset.baseColor; boxEl.style.borderColor = ''; }
+            }
+        });
+        row.values.forEach((val, i) => {
+            const ovValEl = document.getElementById(`ov-val-${i}`); const ovRowEl = ovValEl ? ovValEl.parentElement : null;
+            if(ovValEl && ovRowEl) {
+                const currentVal = val !== null ? val : 0; ovValEl.textContent = currentVal.toFixed(1); const baseColor = ovRowEl.dataset.baseColor;
+                if (currentVal >= globalThreshold) { ovRowEl.style.backgroundColor = baseColor; ovRowEl.style.color = '#fff'; ovRowEl.style.textShadow = 'none'; } 
+                else { ovRowEl.style.backgroundColor = 'transparent'; ovRowEl.style.color = baseColor; ovRowEl.style.textShadow = '1px 1px 2px black'; }
+            }
+        });
+    }
+    
+    function syncLoop() { 
+        // 動画再生中 or マーカー移動中でなければ描画ループ
+        if (chartInstance && !isDragging && !isDraggingMarker && !video.paused) { 
+            chartInstance.draw(); 
+        } 
+        requestAnimationFrame(syncLoop); 
+    }
+    syncLoop();
+</script>
+</body>
+</html>
